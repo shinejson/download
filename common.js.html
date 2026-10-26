@@ -7,31 +7,136 @@ const App = (function () {
   };
 
   let currentPage = 'dashboard';
+  const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+  function isStrongPassword(value) {
+    if (typeof value !== 'string') return false;
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])(?=.{8,128}$)/.test(value.trim());
+  }
+
+  function refreshSessionTimer() {
+    sessionStorage.setItem('conference_records.session', String(Date.now()));
+  }
+
+  function startSessionTimer() {
+    const sessionKey = 'conference_records.session';
+    const now = Date.now();
+    sessionStorage.setItem(sessionKey, String(now));
+    window.clearInterval(window.__appSessionTimer__);
+    window.__appSessionTimer__ = window.setInterval(function () {
+      const last = Number(sessionStorage.getItem(sessionKey) || 0);
+      if (!last) return;
+      if ((Date.now() - last) > SESSION_TIMEOUT_MS) {
+        sessionStorage.removeItem(sessionKey);
+        try {
+          google.script.run.withFailureHandler(function () {}).logoutUser();
+        } catch (e) {}
+        window.location.href = (window.__appUrl__ || (window.location.origin + window.location.pathname)) + '?logout=true';
+      }
+    }, 30000);
+  }
+
+  function setTopbarUser(name) {
+    const chip = document.querySelector('.user-chip');
+    if (!chip) return;
+    const label = chip.querySelector('span');
+    const avatar = chip.querySelector('.avatar');
+    if (!label) return;
+    const display = name && String(name).trim() ? String(name).trim() : 'Admin';
+    label.textContent = display;
+    if (avatar) {
+      avatar.textContent = display.charAt(0).toUpperCase() || 'A';
+    }
+  }
+
+  function loadCurrentUser() {
+    google.script.run
+      .withSuccessHandler(function (user) {
+        if (user && user.fullName) {
+          setTopbarUser(user.fullName);
+        } else if (user && user.username) {
+          setTopbarUser(user.username);
+        } else {
+          setTopbarUser('Admin');
+        }
+      })
+      .withFailureHandler(function () {
+        setTopbarUser('Admin');
+      })
+      .getCurrentUserProfile();
+  }
+
+  function applyPasswordToggleToFields() {
+    document.querySelectorAll('input[type="password"]').forEach(function (field) {
+      if (field.dataset.toggleBound === 'true') return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'password-toggle-wrap';
+      const parent = field.parentNode;
+      if (!parent || parent.classList.contains('password-toggle-wrap')) return;
+      parent.insertBefore(wrapper, field);
+      wrapper.appendChild(field);
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'password-toggle';
+      toggle.textContent = 'Show';
+      toggle.setAttribute('aria-label', 'Toggle password visibility');
+      toggle.addEventListener('click', function () {
+        const isHidden = field.type === 'password';
+        field.type = isHidden ? 'text' : 'password';
+        toggle.textContent = isHidden ? 'Hide' : 'Show';
+      });
+      wrapper.appendChild(toggle);
+      field.dataset.toggleBound = 'true';
+    });
+  }
 
   function init(initialPage) {
-    // Sidebar toggle
-    document.getElementById('sidebarToggle').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('hidden');
-      document.getElementById('main').classList.toggle('full');
-      document.getElementById('sidebar').classList.toggle('mobile-open');
+    window.__appUrl__ = document.body.getAttribute('data-app-url') || (window.location.origin + window.location.pathname);
+
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('hidden');
+        document.getElementById('main').classList.toggle('full');
+        document.getElementById('sidebar').classList.toggle('mobile-open');
+      });
+    }
+
+    document.querySelectorAll('[data-action]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const action = el.dataset.action;
+        if (action === 'logout') {
+          e.preventDefault();
+          logout();
+        }
+        if (action === 'change-password') {
+          e.preventDefault();
+          openChangePasswordModal();
+        }
+      });
     });
 
-    // Nav links
     document.querySelectorAll('.nav-link').forEach(a => {
       a.addEventListener('click', (e) => {
+        if (a.dataset.action) return;
         e.preventDefault();
         const page = a.dataset.page;
         navigate(page);
       });
     });
 
-    // Hash change
     window.addEventListener('hashchange', () => {
       const page = (location.hash || '#dashboard').substring(1);
       if (ROUTES.includes(page)) navigate(page, false);
     });
 
-    // Load page modules
+    window.addEventListener('mousemove', refreshSessionTimer);
+    window.addEventListener('keydown', refreshSessionTimer);
+    window.addEventListener('click', refreshSessionTimer);
+    startSessionTimer();
+    loadCurrentUser();
+
     Pages.dashboard.init && Pages.dashboard.init();
     Pages.categories.init && Pages.categories.init();
     Pages.items.init && Pages.items.init();
@@ -39,7 +144,6 @@ const App = (function () {
     Pages.users.init && Pages.users.init();
     Pages.settings.init && Pages.settings.init();
 
-    // Initial navigation
     const startPage = ROUTES.includes(initialPage) ? initialPage : 'dashboard';
     navigate(startPage, false);
   }
@@ -48,37 +152,34 @@ const App = (function () {
     if (!ROUTES.includes(page)) page = 'dashboard';
     currentPage = page;
 
-    // Hide all pages
     document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
     const el = document.getElementById('page-' + page);
     if (el) el.classList.add('active');
 
-    // Nav active state
     document.querySelectorAll('.nav-link').forEach(a => {
-      a.classList.toggle('active', a.dataset.page === page);
+      if (!a.dataset.action) a.classList.toggle('active', a.dataset.page === page);
     });
 
-    // Title
-    document.getElementById('topnavTitle').textContent = TITLES[page] || page;
+    const titleEl = document.getElementById('topnavTitle');
+    if (titleEl) titleEl.textContent = TITLES[page] || page;
 
-    // Hash
     if (setHash && location.hash !== '#' + page) {
       location.hash = page;
     }
 
-    // On-show hook
     if (Pages[page] && Pages[page].onShow) {
       try { Pages[page].onShow(); } catch (err) { console.error(err); }
     }
 
-    // Mobile: close sidebar
     if (window.innerWidth <= 768) {
-      document.getElementById('sidebar').classList.remove('mobile-open');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.remove('mobile-open');
     }
   }
 
   function toast(msg, type = 'success') {
     const el = document.getElementById('toast');
+    if (!el) return;
     el.textContent = msg;
     el.className = 'show ' + (type === 'error' ? 'error' : '');
     clearTimeout(el._t);
@@ -103,15 +204,78 @@ const App = (function () {
     } catch { return String(d); }
   }
 
+  function logout() {
+    if (!window.confirm('Are you sure you want to log out?')) return;
+    google.script.run
+      .withSuccessHandler(() => {
+        sessionStorage.removeItem('conference_records.session');
+        window.location.href = (window.__appUrl__ || (window.location.origin + window.location.pathname)) + '?logout=true';
+      })
+      .withFailureHandler(err => {
+        console.error(err);
+        toast(err && err.message ? err.message : 'Logout failed', 'error');
+      })
+      .logoutUser();
+  }
+
+  function openChangePasswordModal() {
+    google.script.run
+      .withSuccessHandler(function (user) {
+        const username = (user && user.username) ? user.username : '';
+        App.openModal({
+          title: 'Change Password',
+          fields: [
+            { name: 'currentPassword', label: 'Current Password', type: 'password', value: '' },
+            { name: 'newPassword', label: 'New Password', type: 'password', value: '' },
+            { name: 'confirmPassword', label: 'Confirm New Password', type: 'password', value: '' }
+          ],
+          onSave: (data) => new Promise((resolve, reject) => {
+            const current = String(data.currentPassword || '').trim();
+            const next = String(data.newPassword || '').trim();
+            const confirm = String(data.confirmPassword || '').trim();
+
+            if (!current) return reject(new Error('Current password is required.'));
+            if (!next) return reject(new Error('New password is required.'));
+            if (!confirm) return reject(new Error('Please confirm the new password.'));
+            if (next !== confirm) return reject(new Error('New password and confirmation do not match.'));
+            if (!App.isStrongPassword(next)) return reject(new Error('Password must be 8-128 chars with uppercase, lowercase, number, and symbol.'));
+
+            google.script.run
+              .withSuccessHandler(() => {
+                App.toast('Password updated successfully.');
+                resolve();
+              })
+              .withFailureHandler(err => reject(err))
+              .changePassword(username, current, next);
+          })
+        });
+
+        setTimeout(() => {
+          const modal = document.querySelector('.modal-body');
+          if (!modal) return;
+          const note = modal.querySelector('.password-policy');
+          if (note) return;
+          const policy = document.createElement('div');
+          policy.className = 'password-policy';
+          policy.innerHTML = '<strong>Password policy:</strong> 8-128 chars, at least one uppercase, one lowercase, one number, and one symbol.';
+          modal.appendChild(policy);
+          applyPasswordToggleToFields();
+        }, 0);
+      })
+      .withFailureHandler(function () {
+        App.toast('Unable to load user profile for password change.', 'error');
+      })
+      .getCurrentUserProfile();
+  }
+
   function openModal(opts) {
-    // opts: { title, fields: [{name, label, type, value, options}], onSave }
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop show';
     backdrop.innerHTML = `
       <div class="modal">
         <div class="modal-header">
           <h3>${esc(opts.title)}</h3>
-          <button class="modal-close">&times;</button>
+          <button class="modal-close" type="button">&times;</button>
         </div>
         <div class="modal-body">
           <form id="modalForm">
@@ -119,8 +283,8 @@ const App = (function () {
           </form>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" data-cancel>Cancel</button>
-          <button class="btn btn-primary" data-save>Save</button>
+          <button class="btn btn-secondary" type="button" data-cancel>Cancel</button>
+          <button class="btn btn-primary" type="button" data-save>Save</button>
         </div>
       </div>
     `;
@@ -143,7 +307,7 @@ const App = (function () {
           console.error(err);
         });
     };
-    // Focus first input
+    setTimeout(applyPasswordToggleToFields, 0);
     const first = backdrop.querySelector('input, select, textarea');
     if (first) first.focus();
   }
@@ -186,11 +350,12 @@ const App = (function () {
 
   return {
     init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable,
+    isStrongPassword,
+    logout, openChangePasswordModal, setTopbarUser, loadCurrentUser,
     get currentPage() { return currentPage; }
   };
 })();
 
-// Registry for page modules (filled in by each page's JS file)
 const Pages = window.Pages || {};
 window.Pages = Pages;
 </script>

@@ -1,25 +1,127 @@
-<div class="page-shell">
-  <div class="card">
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="label">Categories</div>
-        <div class="value" data-stat="categories">0</div>
+<!-- DASHBOARD PAGE -->
+<div class="dashboard">
+  <!-- Page Header -->
+  <header class="dashboard-header">
+    <div class="dashboard-header-content">
+      <h1 class="dashboard-title">Dashboard</h1>
+      <p class="dashboard-subtitle">Overview of your conference records</p>
+    </div>
+    <div class="dashboard-actions">
+      <button class="btn btn-outline btn-sm" id="dashboardRefresh" title="Refresh data">
+        <span class="btn-icon">↻</span>
+        <span class="btn-label">Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Stat Cards -->
+  <div class="stat-grid">
+    <div class="stat-card stat-card-primary">
+      <div class="stat-card-inner">
+        <div class="stat-meta">
+          <span class="stat-label">Total Categories</span>
+          <span class="stat-badge" data-stat-badge="categories">0</span>
+        </div>
+        <div class="stat-value" data-stat="categories">0</div>
+        <div class="stat-delta stat-delta-neutral">Records</div>
       </div>
-      <div class="stat-box">
-        <div class="label">Items</div>
-        <div class="value" data-stat="items">0</div>
+    </div>
+    <div class="stat-card stat-card-info">
+      <div class="stat-card-inner">
+        <div class="stat-meta">
+          <span class="stat-label">Total Items</span>
+          <span class="stat-badge" data-stat-badge="items">0</span>
+        </div>
+        <div class="stat-value" data-stat="items">0</div>
+        <div class="stat-delta stat-delta-neutral">Catalogued</div>
       </div>
-      <div class="stat-box">
-        <div class="label">Menu</div>
-        <div class="value" data-stat="menu">0</div>
+    </div>
+    <div class="stat-card stat-card-success">
+      <div class="stat-card-inner">
+        <div class="stat-meta">
+          <span class="stat-label">Upcoming Conferences</span>
+          <span class="stat-badge" data-stat-badge="upcoming">0</span>
+        </div>
+        <div class="stat-value" data-stat="upcoming">0</div>
+        <div class="stat-delta stat-delta-neutral">Scheduled</div>
       </div>
-      <div class="stat-box">
-        <div class="label">Users</div>
-        <div class="value" data-stat="users">0</div>
+    </div>
+    <div class="stat-card stat-card-warning">
+      <div class="stat-card-inner">
+        <div class="stat-meta">
+          <span class="stat-label">Total Users</span>
+          <span class="stat-badge" data-stat-badge="users">0</span>
+        </div>
+        <div class="stat-value" data-stat="users">0</div>
+        <div class="stat-delta stat-delta-neutral">Registered</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Grid -->
+  <div class="dashboard-grid">
+    <!-- Line Chart: Conference Trends -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <span class="card-icon">📈</span>
+          <span class="card-title">Conference Trends</span>
+        </div>
+        <span class="card-subtitle">Last 6 months</span>
+      </div>
+      <div class="card-body chart-wrapper">
+        <div class="chart-loading" id="trendsChartLoading">
+          <div class="spinner"></div> Loading…
+        </div>
+        <canvas id="trendsChart" role="img" aria-label="Conference trends over the last 6 months"></canvas>
       </div>
     </div>
 
-    <div class="section-header">Upcoming Conferences</div>
-    <div id="upcomingList" class="list"></div>
+    <!-- Donut Chart: Category Distribution -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <span class="card-icon">🍩</span>
+          <span class="card-title">Category Distribution</span>
+        </div>
+        <span class="card-subtitle">Items by category</span>
+      </div>
+      <div class="card-body chart-wrapper">
+        <div class="chart-loading" id="categoryChartLoading">
+          <div class="spinner"></div> Loading…
+        </div>
+        <canvas id="categoryChart" role="img" aria-label="Items distributed by category"></canvas>
+      </div>
+    </div>
+
+    <!-- Bar Chart: Items per Category -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <span class="card-icon">📦</span>
+          <span class="card-title">Items per Category</span>
+        </div>
+        <span class="card-subtitle">Count breakdown</span>
+      </div>
+      <div class="card-body chart-wrapper">
+        <div class="chart-loading" id="itemsChartLoading">
+          <div class="spinner"></div> Loading…
+        </div>
+        <canvas id="itemsChart" role="img" aria-label="Number of items per category"></canvas>
+      </div>
+    </div>
+
+    <!-- Upcoming Conferences List -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <span class="card-icon">📅</span>
+          <span class="card-title">Upcoming Conferences</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="upcomingList" class="list"></div>
+      </div>
+    </div>
   </div>
 </div>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conference Records Login</title>
+  <style>
+    :root {
+      --bg1: #0f172a;
+      --bg2: #111827;
+      --panel: rgba(15, 23, 42, 0.76);
+      --panel-2: rgba(17, 24, 39, 0.9);
+      --primary: #4f46e5;
+      --primary-2: #7c3aed;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.2);
+      --input-bg: rgba(15, 23, 42, 0.9);
+      --shadow: 0 24px 80px rgba(15, 23, 42, 0.7);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%; height: 100%;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top, #1e293b, var(--bg1) 35%, var(--bg2));
+      color: var(--text);
+    }
+
+    body {
+      display: grid; place-items: center;
+      padding: 24px;
+    }
+
+    .login-shell {
+      width: min(100%, 420px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px 26px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      margin-bottom: 12px; font-weight: 700; font-size: 1.15rem;
+    }
+
+    .brand-mark {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+      font-size: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px; font-size: 2rem; text-align: center;
+    }
+
+    .subtitle {
+      text-align: center; color: var(--muted); margin: 0 0 20px; font-size: 0.95rem;
+    }
+
+    form {
+      display: grid; gap: 16px;
+    }
+
+    .field {
+      display: grid; gap: 8px;
+    }
+
+    label {
+      font-size: 0.82rem; color: var(--muted); font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      padding: 14px 14px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus {
+      border-color: rgba(79, 70, 229, 0.8);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.16);
+    }
+
+    .input-error {
+      border-color: rgba(239, 68, 68, 0.9) !important;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
+    }
+
+    .error-message {
+      min-height: 18px; color: #fecaca; font-size: 0.8rem; margin-top: 2px;
+    }
+
+    button {
+      border: none; cursor: pointer;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: white; font-size: 1rem; font-weight: 700;
+      box-shadow: 0 16px 28px rgba(79, 70, 229, 0.35);
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    button:disabled {
+      cursor: not-allowed; opacity: 0.75; transform: none;
+    }
+
+    .meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.8rem; color: var(--muted);
+    }
+
+    .checkbox {
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+
+    .checkbox input {
+      width: 14px; height: 14px; margin: 0;
+    }
+
+    .password-toggle-wrap {
+      display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--input-bg);
+      overflow: hidden;
+    }
+
+    .password-toggle-wrap input {
+      border: none; background: transparent; border-radius: 0;
+      flex: 1; min-width: 0;
+    }
+
+    .password-toggle {
+      background: transparent; color: var(--muted); border: none;
+      padding: 0 12px; font-size: 0.8rem; cursor: pointer;
+      box-shadow: none;
+    }
+
+    .password-toggle:hover { color: var(--text); }
+
+    .security-note {
+      margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 0.76rem; text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      .login-shell { padding: 22px 18px; }
+      h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-shell">
+    <div class="brand">
+      <div class="brand-mark">📊</div>
+      <span>Conference Records</span>
+    </div>
+    <h1>Sign in</h1>
+    <p class="subtitle">Use your username and password to access the app.</p>
+
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" placeholder="Enter your username" autocomplete="username" maxlength="50">
+        <div id="usernameError" class="error-message" aria-live="polite"></div>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="password-toggle-wrap">
+          <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" maxlength="128">
+          <button type="button" class="password-toggle" id="togglePassword">Show</button>
+        </div>
+        <div id="passwordError" class="error-message" aria-live="polite"></div>
+      </div>
+
+      <div class="meta">
+        <label class="checkbox"><input type="checkbox" id="rememberMe"> Remember me</label>
+        <span>Secure access</span>
+      </div>
+
+      <div class="security-note">Password policy: 8-128 chars, uppercase, lowercase, number, and symbol.</div>
+
+      <button id="loginBtn" type="submit">Login</button>
+    </form>
+
+    <div class="security-note">Protected by authenticated session and input validation.</div>
+  </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById('loginForm');
+      const usernameEl = document.getElementById('username');
+      const passwordEl = document.getElementById('password');
+      const togglePasswordBtn = document.getElementById('togglePassword');
+      const loginBtn = document.getElementById('loginBtn');
+
+      function setError(field, message) {
+        const errorEl = document.getElementById(field + 'Error');
+        const inputEl = document.getElementById(field);
+        if (errorEl) errorEl.textContent = message || '';
+        if (inputEl) inputEl.classList.toggle('input-error', !!message);
+      }
+
+      function validateUsername() {
+        const value = usernameEl.value.trim();
+        const valid = /^[a-zA-Z0-9._-]{3,50}$/.test(value);
+        if (!value) {
+          setError('username', 'Username is required.');
+          return false;
+        }
+        if (!valid) {
+          setError('username', 'Use 3-50 letters, numbers, ., _, or -.');
+          return false;
+        }
+        setError('username', '');
+        return true;
+      }
+
+      function validatePassword() {
+        const value = passwordEl.value;
+        if (!value) {
+          setError('password', 'Password is required.');
+          return false;
+        }
+        if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])(?=.{8,128}$)/.test(value)) {
+          setError('password', 'Use 8-128 chars with uppercase, lowercase, number, and symbol.');
+          return false;
+        }
+        setError('password', '');
+        return true;
+      }
+
+      togglePasswordBtn.addEventListener('click', function () {
+        const isHidden = passwordEl.type === 'password';
+        passwordEl.type = isHidden ? 'text' : 'password';
+        togglePasswordBtn.textContent = isHidden ? 'Hide' : 'Show';
+        passwordEl.focus();
+      });
+
+      usernameEl.addEventListener('input', validateUsername);
+      passwordEl.addEventListener('input', validatePassword);
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const valid = validateUsername() & validatePassword();
+        if (!valid) return;
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Authenticating...';
+
+        google.script.run
+          .withSuccessHandler(function (result) {
+            if (result && result.ok) {
+              const remember = document.getElementById('rememberMe').checked;
+              sessionStorage.setItem('conference_records.auth', JSON.stringify({
+                username: result.username,
+                remember: remember,
+                ts: Date.now()
+              }));
+              window.location.href = '<?= appUrl ?>';
+            } else {
+              setError('username', 'Invalid login attempt.');
+              setError('password', 'Please check your credentials.');
+              loginBtn.disabled = false;
+              loginBtn.textContent = 'Login';
+            }
+          })
+          .withFailureHandler(function (err) {
+            const msg = err && err.message ? err.message : 'Authentication failed';
+            setError('username', msg);
+            setError('password', '');
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Login';
+          })
+          .authenticateUser(usernameEl.value.trim(), passwordEl.value);
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,55 +1,335 @@
 <script>
+/**
+ * Dashboard page module.
+ * Fetches stats + chart data, renders stat cards, manages Chart.js lifecycle.
+ */
 Pages.dashboard = (function () {
-  function init() {
-    // Quick action buttons
-    document.querySelectorAll('[data-quick]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const page = btn.dataset.quick;
-        App.navigate(page);
-        setTimeout(() => {
-          const map = {
-            categories: 'categoriesAddBtn',
-            items: 'itemsAddBtn',
-            menu: 'menuAddBtn',
-            users: 'usersAddBtn'
-          };
-          const el = document.getElementById(map[page]);
-          if (el) el.click();
-        }, 300);
-      });
+  'use strict';
+
+  const charts = {};
+  let isMounted = false;
+  const els = {};
+
+  function cacheElements() {
+    els.refreshBtn = document.getElementById('dashboardRefresh');
+    ['categories', 'items', 'menu', 'users', 'upcoming'].forEach(function (key) {
+      els[key] = document.querySelector('[data-stat="' + key + '"]');
+      els[key + 'Badge'] = document.querySelector('[data-stat-badge="' + key + '"]');
     });
+    els.upcomingList = document.getElementById('upcomingList');
+    ['trends', 'category', 'items'].forEach(function (chartName) {
+      els[chartName + 'Loading'] = document.getElementById(chartName + 'ChartLoading');
+    });
+  }
+
+  function setStat(key, value) {
+    var display = els[key];
+    var badge = els[key + 'Badge'];
+    if (display) display.textContent = value != null ? value : 0;
+    if (badge) badge.textContent = value != null ? value : 0;
+  }
+
+  function showLoading(chartName) {
+    var el = els[chartName + 'Loading'];
+    var canvas = document.getElementById(chartName + 'Chart');
+    if (el) el.style.display = 'block';
+    if (canvas) canvas.style.display = 'none';
+  }
+
+  function hideLoading(chartName) {
+    var el = els[chartName + 'Loading'];
+    var canvas = document.getElementById(chartName + 'Chart');
+    if (el) el.style.display = 'none';
+    if (canvas) canvas.style.display = 'block';
+  }
+
+  function renderEmptyList(containerEl, msg) {
+    if (!containerEl) return;
+    containerEl.innerHTML = '<div class="empty-state">' + App.esc(msg || 'No records found.') + '</div>';
+  }
+
+  function renderUpcomingList(upcoming) {
+    var container = els.upcomingList;
+    if (!container) return;
+    if (!upcoming || upcoming.length === 0) {
+      renderEmptyList(container, 'No upcoming conferences.');
+      return;
+    }
+    container.innerHTML = upcoming.map(function (u) {
+      return '<div class="list-item">' +
+        '<div class="list-item-content">' +
+        '<div class="list-item-title">' + App.esc(u.conference || 'Untitled') + '</div>' +
+        '<div class="list-item-meta">' +
+        App.esc(u.date || '') + ' · ' + App.esc(u.pax != null ? u.pax : 0) + ' pax' +
+        '</div>' +
+        '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function destroyChart(name) {
+    if (charts[name]) {
+      try { charts[name].destroy(); } catch (e) { /* ignore */ }
+      charts[name] = null;
+    }
+  }
+
+  function destroyAllCharts() {
+    Object.keys(charts).forEach(function (k) { destroyChart(k); });
+  }
+
+  const CHART_COLORS = {
+    primary: 'rgba(37, 99, 235, 1)',
+    primaryFade: 'rgba(37, 99, 235, 0.15)',
+    info: 'rgba(59, 130, 246, 1)',
+    success: 'rgba(16, 185, 129, 1)',
+    warning: 'rgba(245, 158, 11, 1)',
+    danger: 'rgba(239, 68, 68, 1)',
+    muted: 'rgba(107, 114, 128, 0.5)',
+    grid: 'rgba(229, 231, 235, 0.6)'
+  };
+
+  function renderTrendsChart(data) {
+    destroyChart('trends');
+    var ctx = document.getElementById('trendsChart');
+    if (!ctx) return;
+    hideLoading('trends');
+
+    var labels = data.labels || [];
+    var values = data.data || [];
+
+    if (!labels.length || !values.length) {
+      ctx.style.display = 'none';
+      renderEmptyList(ctx.parentElement, 'No trend data available.');
+      return;
+    }
+
+    charts['trends'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Conferences',
+          data: values,
+          borderColor: CHART_COLORS.primary,
+          backgroundColor: CHART_COLORS.primaryFade,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 13, weight: '600' },
+            bodyFont: { size: 13 },
+            padding: 10,
+            cornerRadius: 8
+          }
+        },
+        scales: {
+          x: { grid: { display: false, color: CHART_COLORS.grid }, ticks: { color: '#6b7280', font: { size: 12 } } },
+          y: { grid: { color: CHART_COLORS.grid }, ticks: { color: '#6b7280', font: { size: 12 }, stepSize: 1 }, beginAtZero: true }
+        },
+        animation: { duration: 750 }
+      }
+    });
+  }
+
+  function renderCategoryChart(data) {
+    destroyChart('category');
+    var ctx = document.getElementById('categoryChart');
+    if (!ctx) return;
+    hideLoading('category');
+
+    var labels = data.labels || [];
+    var values = data.data || [];
+
+    if (!labels.length || values.every(function (v) { return v == null || v === 0; })) {
+      ctx.style.display = 'none';
+      renderEmptyList(ctx.parentElement, 'No category data available.');
+      return;
+    }
+
+    var backgroundColors = [
+      CHART_COLORS.primary, CHART_COLORS.info, CHART_COLORS.success,
+      CHART_COLORS.warning, CHART_COLORS.danger, '#8b5cf6', '#ec4899', '#14b8a6'
+    ];
+
+    charts['category'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: values.map(function (_, i) { return backgroundColors[i % backgroundColors.length]; }),
+          borderColor: '#ffffff',
+          borderWidth: 2,
+          hoverOffset: 16
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 20, font: { size: 12 }, color: '#6b7280' }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 13, weight: '600' },
+            bodyFont: { size: 13 },
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              label: function (ctx) {
+                var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                var pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                return ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+              }
+            }
+          }
+        },
+        animation: { duration: 750 }
+      }
+    });
+  }
+
+  function renderItemsChart(data) {
+    destroyChart('items');
+    var ctx = document.getElementById('itemsChart');
+    if (!ctx) return;
+    hideLoading('items');
+
+    var labels = data.labels || [];
+    var values = data.data || [];
+
+    if (!labels.length || values.every(function (v) { return v == null || v === 0; })) {
+      ctx.style.display = 'none';
+      renderEmptyList(ctx.parentElement, 'No item data available.');
+      return;
+    }
+
+    charts['items'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Items',
+          data: values,
+          backgroundColor: CHART_COLORS.primary,
+          borderRadius: 6,
+          barThickness: 'flex',
+          maxBarThickness: 40
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleFont: { size: 13, weight: '600' },
+            bodyFont: { size: 13 },
+            padding: 10,
+            cornerRadius: 8
+          }
+        },
+        scales: {
+          x: { grid: { display: false, color: CHART_COLORS.grid }, ticks: { color: '#6b7280', font: { size: 12 } } },
+          y: { grid: { color: CHART_COLORS.grid }, ticks: { color: '#6b7280', font: { size: 12 }, stepSize: 1 }, beginAtZero: true }
+        },
+        animation: { duration: 750 }
+      }
+    });
+  }
+
+  function load() {
+    ['trends', 'category', 'items'].forEach(showLoading);
+
+    google.script.run
+      .withSuccessHandler(onStatsLoaded)
+      .withFailureHandler(function (err) {
+        App.toast(err.message || 'Failed to load dashboard stats', 'error');
+        ['trends', 'category', 'items'].forEach(hideLoading);
+      })
+      .getDashboardStats();
+
+    google.script.run
+      .withSuccessHandler(renderTrendsChart)
+      .withFailureHandler(function (err) {
+        console.error('trends error', err);
+        hideLoading('trends');
+      })
+      .getMonthlyTrends();
+
+    google.script.run
+      .withSuccessHandler(renderCategoryChart)
+      .withFailureHandler(function (err) {
+        console.error('category error', err);
+        hideLoading('category');
+      })
+      .getCategoryBreakdown();
+
+    google.script.run
+      .withSuccessHandler(renderItemsChart)
+      .withFailureHandler(function (err) {
+        console.error('items error', err);
+        hideLoading('items');
+      })
+      .getItemsDistribution();
+  }
+
+  function onStatsLoaded(stats) {
+    if (!stats) return;
+    setStat('categories', stats.categories);
+    setStat('items', stats.items);
+    setStat('menu', stats.menu);
+    setStat('users', stats.users);
+    setStat('upcoming', stats.upcoming ? stats.upcoming.length : 0);
+    renderUpcomingList(stats.upcoming || []);
+  }
+
+  function init() {
+    if (isMounted) return;
+    cacheElements();
+
+    if (els.refreshBtn) {
+      els.refreshBtn.addEventListener('click', function () {
+        els.refreshBtn.classList.add('btn-loading');
+        setTimeout(function () { els.refreshBtn.classList.remove('btn-loading'); }, 600);
+        load();
+      });
+    }
+
+    isMounted = true;
     load();
   }
 
-  function onShow() { load(); }
-
-  function load() {
-    google.script.run
-      .withSuccessHandler(render)
-      .withFailureHandler(err => App.toast(err.message || 'Failed to load stats', 'error'))
-      .getDashboardStats();
-  }
-
-  function render(stats) {
-    Object.keys(stats).forEach(k => {
-      const el = document.querySelector(`[data-stat="${k}"]`);
-      if (el && typeof stats[k] === 'number') el.textContent = stats[k];
+  function onShow() {
+    load();
+    Object.keys(charts).forEach(function (name) {
+      var c = charts[name];
+      if (c) c.update();
     });
-    const listEl = document.getElementById('upcomingList');
-    if (!stats.upcoming || stats.upcoming.length === 0) {
-      listEl.innerHTML = '<div class="empty-state">No upcoming conferences.</div>';
-      return;
-    }
-    listEl.innerHTML = stats.upcoming.map(u => `
-      <div class="list-item">
-        <div>
-          <div class="title">${App.esc(u.conference)}</div>
-          <div class="meta">${App.esc(u.date)} · ${App.esc(u.pax)} pax</div>
-        </div>
-      </div>
-    `).join('');
   }
 
-  return { init, onShow, load };
+  function destroy() {
+    destroyAllCharts();
+    isMounted = false;
+  }
+
+  return { init: init, onShow: onShow, load: load, destroy: destroy };
 })();
 </script>
