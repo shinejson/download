@@ -41,13 +41,32 @@
 
   <!-- CONTENT -->
   <main id="content">
-  <div id="page-dashboard" class="page"><?!= include('dashboard'); ?></div>
-  <div id="page-categories" class="page"><?!= include('categories'); ?></div>
-  <div id="page-items" class="page"><?!= include('items'); ?></div>
-  <div id="page-menu" class="page"><?!= include('menu'); ?></div>
-  <div id="page-users" class="page"><?!= include('users'); ?></div>
-  <div id="page-settings" class="page"><?!= include('settings'); ?></div>
-</main>
+    <div class="page-shell">
+      <div class="card">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="label">Categories</div>
+            <div class="value" data-stat="categories">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Items</div>
+            <div class="value" data-stat="items">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Menu</div>
+            <div class="value" data-stat="menu">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Users</div>
+            <div class="value" data-stat="users">0</div>
+          </div>
+        </div>
+
+        <div class="section-header">Upcoming Conferences</div>
+        <div id="upcomingList" class="list"></div>
+      </div>
+    </div>
+  </main>
 </div>
 
 <div id="toast"></div>
