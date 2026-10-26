@@ -1,6 +1,8 @@
 <script>
+var Pages = window.Pages = window.Pages || {};
 Pages.menu = (function () {
   let records = [];
+  let categoryOptions = [];
   let itemOptions = [];
   let page = 1;
   let pageSize = 10;
@@ -9,9 +11,17 @@ Pages.menu = (function () {
   let paxFilter = 'all';
   let sortOrder = 'date_asc';
 
+  const DEFAULT_CATEGORIES = [
+    'STARTER',
+    'MAIN DISH',
+    'SIDE DISH',
+    'DESERT',
+    'SIDE ORDERS (A LA CARTE)'
+  ];
+
   function init() {
     const addBtn = document.getElementById('menuAddBtn');
-    if (addBtn) addBtn.addEventListener('click', () => openForm());
+    if (addBtn) addBtn.addEventListener('click', () => openMenuBuilder());
 
     const searchInput = document.getElementById('menuSearchInput');
     const clearBtn = document.getElementById('menuSearchClearBtn');
@@ -84,9 +94,7 @@ Pages.menu = (function () {
       });
     }
 
-    if (App.can('items.view')) {
-      loadItems();
-    }
+    loadMasterLookups();
   }
 
   function updateControls() {
@@ -98,18 +106,23 @@ Pages.menu = (function () {
 
   function onShow() {
     updateControls();
-    if (App.can('items.view') && itemOptions.length === 0) {
-      loadItems();
-    }
+    loadMasterLookups();
     load();
   }
 
-  function loadItems() {
-    if (!App.can('items.view')) return;
-    google.script.run
-      .withSuccessHandler(data => { itemOptions = data || []; })
-      .withFailureHandler(() => { itemOptions = []; })
-      .getItems();
+  function loadMasterLookups() {
+    if (App.can('categories.view')) {
+      google.script.run
+        .withSuccessHandler(data => { categoryOptions = data || []; })
+        .withFailureHandler(() => { categoryOptions = []; })
+        .getCategories();
+    }
+    if (App.can('items.view')) {
+      google.script.run
+        .withSuccessHandler(data => { itemOptions = data || []; })
+        .withFailureHandler(() => { itemOptions = []; })
+        .getItems();
+    }
   }
 
   function load() {
@@ -124,6 +137,44 @@ Pages.menu = (function () {
       .getMenuRecords();
   }
 
+  function parseMenuData(rawMenu) {
+    if (!rawMenu) {
+      return { categories: [], ingredients: [] };
+    }
+    if (typeof rawMenu === 'object') {
+      return {
+        categories: Array.isArray(rawMenu.categories) ? rawMenu.categories : [],
+        ingredients: Array.isArray(rawMenu.ingredients) ? rawMenu.ingredients : []
+      };
+    }
+    const str = String(rawMenu).trim();
+    if (str.startsWith('{') && str.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(str);
+        return {
+          categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+          ingredients: Array.isArray(parsed.ingredients) ? parsed.ingredients : []
+        };
+      } catch (e) {}
+    }
+    // Legacy plain text fallback
+    return {
+      categories: [
+        {
+          name: 'MENU ITEMS',
+          items: str.split(',').map(s => ({
+            name: s.trim(),
+            pcs: '',
+            weight: '',
+            unit: 'kg',
+            notes: ''
+          })).filter(x => x.name)
+        }
+      ],
+      ingredients: []
+    };
+  }
+
   function getFilteredAndSorted() {
     const q = searchQuery.toLowerCase();
     const today = new Date();
@@ -134,15 +185,14 @@ Pages.menu = (function () {
       if (timelineFilter !== 'all') {
         const d = r.date ? new Date(r.date) : null;
         if (!d || isNaN(d.getTime())) {
-          if (timelineFilter !== 'all') return false;
-        } else {
-          d.setHours(0, 0, 0, 0);
-          if (timelineFilter === 'upcoming' && d < today) return false;
-          if (timelineFilter === 'past' && d >= today) return false;
-          if (timelineFilter === 'this_month') {
-            if (d.getFullYear() !== today.getFullYear() || d.getMonth() !== today.getMonth()) {
-              return false;
-            }
+          return false;
+        }
+        d.setHours(0, 0, 0, 0);
+        if (timelineFilter === 'upcoming' && d < today) return false;
+        if (timelineFilter === 'past' && d >= today) return false;
+        if (timelineFilter === 'this_month') {
+          if (d.getFullYear() !== today.getFullYear() || d.getMonth() !== today.getMonth()) {
+            return false;
           }
         }
       }
@@ -209,11 +259,16 @@ Pages.menu = (function () {
     const filtered = getFilteredAndSorted();
     const canEdit = App.can('menu.edit');
     const canDelete = App.can('menu.delete');
-    const hasActions = canEdit || canDelete;
 
-    const headers = hasActions
-      ? ['MID', 'Conference', 'Date', 'Pax', 'Menu Items', 'Remarks', 'Actions']
-      : ['MID', 'Conference', 'Date', 'Pax', 'Menu Items', 'Remarks'];
+    const headers = [
+      'MID',
+      'Conference / Event',
+      'Date & Day',
+      'Pax',
+      'Menu & Production Structure',
+      'Remarks',
+      'Actions'
+    ];
 
     App.renderPaginatedTable({
       container: wrap,
@@ -237,37 +292,81 @@ Pages.menu = (function () {
         const d = r.date ? new Date(r.date) : null;
         const isUpcoming = d && !isNaN(d.getTime()) && d >= new Date();
         const dateFormatted = App.fmtDate(r.date);
+        const dayName = d && !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : '';
+
+        const parsed = parseMenuData(r.menu);
+        const catCount = parsed.categories.length;
+        const dishCount = parsed.categories.reduce((acc, c) => acc + (c.items ? c.items.length : 0), 0);
+        const ingCount = parsed.ingredients.length;
+
+        let menuSummaryHtml = '';
+        if (catCount > 0 || ingCount > 0) {
+          menuSummaryHtml = `
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span class="role-badge" style="background:#eff6ff;color:#2563eb;font-size:11px;padding:2px 8px;">
+                  <i class="fa-solid fa-layer-group"></i> ${catCount} Categories
+                </span>
+                <span class="role-badge" style="background:#f0fdf4;color:#16a34a;font-size:11px;padding:2px 8px;">
+                  <i class="fa-solid fa-utensils"></i> ${dishCount} Dishes
+                </span>
+                ${ingCount > 0 ? `
+                  <span class="role-badge" style="background:#fef3c7;color:#d97706;font-size:11px;padding:2px 8px;">
+                    <i class="fa-solid fa-carrot"></i> ${ingCount} Ingredients
+                  </span>
+                ` : ''}
+              </div>
+              <small style="color:var(--text-light);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${App.esc(parsed.categories.map(c => c.name).filter(Boolean).join(', '))}
+              </small>
+            </div>
+          `;
+        } else {
+          menuSummaryHtml = `<span style="color:var(--text-light);font-size:12px;">No dishes configured</span>`;
+        }
 
         return `
           <tr>
             <td><code>${App.esc(r.mid)}</code></td>
-            <td><strong>${App.esc(r['conference name'])}</strong></td>
             <td>
-              <span style="display:inline-flex;align-items:center;gap:4px;">
-                ${dateFormatted ? `<i class="fa-regular fa-calendar" style="color:var(--text-light);font-size:11px;"></i> ${App.esc(dateFormatted)}` : '—'}
-                ${isUpcoming ? '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-weight:600;margin-left:4px;">Upcoming</span>' : ''}
-              </span>
+              <strong style="color:var(--text);font-size:13.5px;">${App.esc(r['conference name'])}</strong>
             </td>
             <td>
-              <span style="font-weight:600;color:var(--text);">${App.esc(r.pax || '—')}</span>
-              ${r.pax ? '<span style="font-size:11px;color:var(--text-light);"> pax</span>' : ''}
+              <div style="display:flex;flex-direction:column;gap:2px;">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-weight:500;">
+                  <i class="fa-regular fa-calendar" style="color:var(--text-light);font-size:12px;"></i>
+                  ${App.esc(dateFormatted || '—')}
+                </span>
+                <span style="font-size:11px;color:var(--text-light);font-weight:600;">
+                  ${App.esc(dayName)} ${isUpcoming ? '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:#e0f2fe;color:#0369a1;margin-left:4px;">Upcoming</span>' : ''}
+                </span>
+              </div>
             </td>
-            <td>${App.esc(r.menu || '—')}</td>
+            <td>
+              <span style="font-weight:700;color:var(--text);font-size:13px;">${App.esc(r.pax || '—')}</span>
+              ${r.pax ? '<span style="font-size:11px;color:var(--text-light);"> PAX</span>' : ''}
+            </td>
+            <td>${menuSummaryHtml}</td>
             <td><small style="color:var(--text-light);">${App.esc(r.remarks || '—')}</small></td>
-            ${hasActions ? `
-              <td class="actions-cell">
-                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}" title="Edit conference"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
-                ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}" title="Delete conference"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
-              </td>
-            ` : ''}
+            <td class="actions-cell">
+              <button class="btn btn-secondary btn-sm" data-sheet="${App.esc(r.mid)}" title="View/Print Production Sheet">
+                <i class="fa-solid fa-file-invoice"></i> Sheet
+              </button>
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}" title="Edit conference menu"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}" title="Delete conference"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+            </td>
           </tr>
         `;
       }
     });
 
+    wrap.querySelectorAll('[data-sheet]').forEach(b => {
+      b.onclick = () => openProductionSheet(records.find(x => String(x.mid) === b.dataset.sheet));
+    });
+
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {
-        b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
+        b.onclick = () => openMenuBuilder(records.find(x => String(x.mid) === b.dataset.edit));
       });
     }
 
@@ -278,7 +377,34 @@ Pages.menu = (function () {
     }
   }
 
-  function openForm(record) {
+  function getDayOfWeek(dateStr) {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function formatDisplayDate(dateVal) {
+    if (!dateVal) return '';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return String(dateVal);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch (e) {
+      return String(dateVal);
+    }
+  }
+
+  // ===== INTERACTIVE MENU BUILDER MODAL =====
+  function openMenuBuilder(record) {
     const isEdit = !!record;
     if (isEdit && !App.can('menu.edit')) {
       App.toast('Permission denied: You cannot edit conference records.', 'error');
@@ -289,33 +415,463 @@ Pages.menu = (function () {
       return;
     }
 
-    const menuVal = record ? record.menu : '';
-    const fields = [
-      { name: 'conference name', label: 'Conference name', value: record ? record['conference name'] : '' },
-      { name: 'date', label: 'Date', type: 'date', value: record ? record.date : '' },
-      { name: 'pax', label: 'Pax', type: 'number', value: record ? record.pax : '' },
-      { name: 'menu', label: 'Menu (item name)', value: menuVal },
-      { name: 'remarks', label: 'Remarks', type: 'textarea', value: record ? record.remarks : '' }
-    ];
+    const parsed = parseMenuData(record ? record.menu : null);
 
-    App.openModal({
-      title: isEdit ? 'Edit Conference' : 'New Conference',
-      fields: fields,
-      onSave: (data) => new Promise((resolve, reject) => {
-        if (!data['conference name']) return reject(new Error('Conference name is required'));
-        if (isEdit) {
-          google.script.run
-            .withSuccessHandler(() => { App.toast('Conference updated'); load(); refreshNotifications(); })
-            .withFailureHandler(reject)
-            .updateMenu(record.mid, data);
-        } else {
-          google.script.run
-            .withSuccessHandler(() => { App.toast('Conference created'); load(); refreshNotifications(); })
-            .withFailureHandler(reject)
-            .createMenu(data);
-        }
-      })
+    // Initial state
+    let stateCategories = parsed.categories && parsed.categories.length > 0
+      ? JSON.parse(JSON.stringify(parsed.categories))
+      : DEFAULT_CATEGORIES.map(name => ({
+          name: name,
+          items: [{ name: '', pcs: '', weight: '', unit: 'kg', notes: '' }]
+        }));
+
+    let stateIngredients = parsed.ingredients && parsed.ingredients.length > 0
+      ? JSON.parse(JSON.stringify(parsed.ingredients))
+      : [
+          { name: 'Fresh Tomatoes', weight: '4.0', unit: 'kg' },
+          { name: 'Green Pepper', weight: '0.30', unit: 'gms' },
+          { name: 'Tomato Paste', weight: '1', unit: 'kg' },
+          { name: 'Onion', weight: '1.55', unit: 'kg' }
+        ];
+
+    const initialDate = record && record.date ? App.fmtDate(record.date) : '';
+    const initialDay = getDayOfWeek(initialDate);
+
+    // Datalist options
+    const catDatalistHtml = (categoryOptions || []).map(c => `<option value="${App.esc(c['Categories name'] || '')}">`).join('');
+    const itemDatalistHtml = (itemOptions || []).map(i => `<option value="${App.esc(i['Items Name'] || '')}">`).join('');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal modal-xl">
+        <div class="modal-header">
+          <h3 style="display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-utensils" style="color:var(--primary);"></i>
+            <span>${isEdit ? 'Edit Conference Menu & Production' : 'Create New Conference Menu'}</span>
+          </h3>
+          <button class="modal-close" type="button" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="modal-body" style="padding: 22px;">
+          <!-- Master Autocomplete Lists -->
+          <datalist id="builderCategoryDatalist">${catDatalistHtml}</datalist>
+          <datalist id="builderItemDatalist">${itemDatalistHtml}</datalist>
+
+          <!-- Top Meta Bar -->
+          <div class="menu-builder-meta">
+            <label>
+              <span>Conference / Event Name *</span>
+              <input type="text" id="builderConfName" placeholder="e.g. Selwyn's 70th Birthday" value="${App.esc(record ? record['conference name'] : '')}">
+            </label>
+
+            <label>
+              <span>Date (<strong id="builderDayLabel" style="color:var(--primary);">${initialDay || 'Day'}</strong>)</span>
+              <input type="date" id="builderConfDate" value="${App.esc(initialDate)}">
+            </label>
+
+            <label>
+              <span>Guest Count (Pax)</span>
+              <input type="number" id="builderConfPax" min="1" placeholder="e.g. 30" value="${App.esc(record ? record.pax : '')}">
+            </label>
+
+            <label>
+              <span>Remarks / Setup Notes</span>
+              <input type="text" id="builderConfRemarks" placeholder="e.g. Table layout, VIP setup..." value="${App.esc(record ? record.remarks : '')}">
+            </label>
+          </div>
+
+          <!-- Two-Column Builder Grid (Exact Document Layout) -->
+          <div class="menu-builder-grid">
+            <!-- Left Column: Categorized Dishes -->
+            <div class="menu-dishes-col">
+              <div class="menu-col-header">
+                <h4><i class="fa-solid fa-list-check" style="color:var(--primary);"></i> Categorized Dishes & Weights</h4>
+                <small style="color:var(--text-light);">Dishes grouped under Starters, Mains, Sides, etc.</small>
+              </div>
+
+              <div id="builderCategoriesContainer"></div>
+
+              <button type="button" class="btn-add-category-dashed" id="builderAddCategoryBtn">
+                <i class="fa-solid fa-plus"></i> Add Another Category Section
+              </button>
+            </div>
+
+            <!-- Right Column: Ingredient Use Box -->
+            <div class="menu-ingredients-col">
+              <div class="ingredient-builder-box">
+                <div class="ingredient-builder-title">
+                  INGREDIENT USE (KITCHEN PREP)
+                </div>
+                <p style="font-size:12px;color:var(--text-light);margin-top:-6px;margin-bottom:12px;text-align:center;">
+                  Raw storehouse ingredients and weights required for cooking.
+                </p>
+
+                <div id="builderIngredientsContainer"></div>
+
+                <button type="button" class="btn-add-item-dashed" id="builderAddIngredientBtn" style="margin-top:10px;">
+                  <i class="fa-solid fa-plus"></i> Add Ingredient Line
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+          <button type="button" class="btn btn-secondary" data-cancel>Cancel</button>
+          <button type="button" class="btn btn-primary" id="builderSaveBtn">
+            <i class="fa-solid fa-floppy-disk"></i> Save Conference Menu
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-cancel]').onclick = close;
+
+    // Date change listener to auto-display Day of week
+    const dateInput = backdrop.querySelector('#builderConfDate');
+    const dayLabel = backdrop.querySelector('#builderDayLabel');
+    dateInput.addEventListener('change', () => {
+      const day = getDayOfWeek(dateInput.value);
+      dayLabel.textContent = day || 'Day';
     });
+
+    // Render Categories
+    function renderCategories() {
+      const container = backdrop.querySelector('#builderCategoriesContainer');
+      container.innerHTML = stateCategories.map((cat, cIdx) => `
+        <div class="category-section-card" data-cat-idx="${cIdx}">
+          <div class="category-section-top">
+            <input type="text" class="category-name-input" list="builderCategoryDatalist" data-cat-name-idx="${cIdx}" value="${App.esc(cat.name)}" placeholder="CATEGORY NAME (e.g. STARTER)">
+            <button type="button" class="btn-remove-row" data-del-cat="${cIdx}" title="Delete entire category section">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+
+          <div class="category-items-list" data-cat-items="${cIdx}">
+            ${cat.items.map((it, iIdx) => `
+              <div class="dish-item-row" data-item-idx="${iIdx}">
+                <input type="text" list="builderItemDatalist" class="dish-name" placeholder="Item name (e.g. Spicy Chicken Wings)" value="${App.esc(it.name)}">
+                <input type="text" class="dish-pcs" placeholder="pcs (e.g. 8pcs)" value="${App.esc(it.pcs || '')}">
+                <input type="text" class="dish-weight" placeholder="weight (e.g. 7.0)" value="${App.esc(it.weight || '')}">
+                <select class="dish-unit">
+                  <option value="kg" ${it.unit === 'kg' ? 'selected' : ''}>kg</option>
+                  <option value="g" ${it.unit === 'g' || it.unit === 'gms' ? 'selected' : ''}>g</option>
+                  <option value="lbs" ${it.unit === 'lbs' ? 'selected' : ''}>lbs</option>
+                  <option value="pcs" ${it.unit === 'pcs' ? 'selected' : ''}>pcs</option>
+                </select>
+                <input type="text" class="dish-notes" placeholder="Notes / Variant (e.g. Sword Fish)" value="${App.esc(it.notes || '')}">
+                <button type="button" class="btn-remove-row" data-del-item="${cIdx}-${iIdx}" title="Remove dish">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            `).join('')}
+          </div>
+
+          <button type="button" class="btn-add-item-dashed" data-add-item="${cIdx}">
+            <i class="fa-solid fa-plus"></i> Add Item to ${App.esc(cat.name || 'Category')}
+          </button>
+        </div>
+      `).join('');
+
+      bindCategoryEvents();
+    }
+
+    function bindCategoryEvents() {
+      // Category Name inputs
+      backdrop.querySelectorAll('[data-cat-name-idx]').forEach(input => {
+        input.oninput = (e) => {
+          const idx = Number(e.target.dataset.catNameIdx);
+          stateCategories[idx].name = e.target.value;
+        };
+      });
+
+      // Item fields
+      backdrop.querySelectorAll('.dish-item-row').forEach(row => {
+        const card = row.closest('.category-section-card');
+        const cIdx = Number(card.dataset.catIdx);
+        const iIdx = Number(row.dataset.itemIdx);
+
+        row.querySelector('.dish-name').oninput = (e) => { stateCategories[cIdx].items[iIdx].name = e.target.value; };
+        row.querySelector('.dish-pcs').oninput = (e) => { stateCategories[cIdx].items[iIdx].pcs = e.target.value; };
+        row.querySelector('.dish-weight').oninput = (e) => { stateCategories[cIdx].items[iIdx].weight = e.target.value; };
+        row.querySelector('.dish-unit').onchange = (e) => { stateCategories[cIdx].items[iIdx].unit = e.target.value; };
+        row.querySelector('.dish-notes').oninput = (e) => { stateCategories[cIdx].items[iIdx].notes = e.target.value; };
+      });
+
+      // Remove Category
+      backdrop.querySelectorAll('[data-del-cat]').forEach(btn => {
+        btn.onclick = () => {
+          const cIdx = Number(btn.dataset.delCat);
+          stateCategories.splice(cIdx, 1);
+          renderCategories();
+        };
+      });
+
+      // Add Item to category
+      backdrop.querySelectorAll('[data-add-item]').forEach(btn => {
+        btn.onclick = () => {
+          const cIdx = Number(btn.dataset.addItem);
+          stateCategories[cIdx].items.push({ name: '', pcs: '', weight: '', unit: 'kg', notes: '' });
+          renderCategories();
+        };
+      });
+
+      // Delete Item
+      backdrop.querySelectorAll('[data-del-item]').forEach(btn => {
+        btn.onclick = () => {
+          const [cIdx, iIdx] = btn.dataset.delItem.split('-').map(Number);
+          stateCategories[cIdx].items.splice(iIdx, 1);
+          renderCategories();
+        };
+      });
+    }
+
+    // Render Ingredients
+    function renderIngredients() {
+      const container = backdrop.querySelector('#builderIngredientsContainer');
+      container.innerHTML = stateIngredients.map((ing, idx) => `
+        <div class="ingredient-row" data-ing-idx="${idx}">
+          <input type="text" class="ing-name" placeholder="Ingredient name" value="${App.esc(ing.name)}">
+          <input type="text" class="ing-weight" placeholder="Weight/qty" value="${App.esc(ing.weight)}">
+          <select class="ing-unit">
+            <option value="kg" ${ing.unit === 'kg' ? 'selected' : ''}>kg</option>
+            <option value="gms" ${ing.unit === 'gms' ? 'selected' : ''}>gms</option>
+            <option value="g" ${ing.unit === 'g' ? 'selected' : ''}>g</option>
+            <option value="pcs" ${ing.unit === 'pcs' ? 'selected' : ''}>pcs</option>
+            <option value="packs" ${ing.unit === 'packs' ? 'selected' : ''}>packs</option>
+            <option value="L" ${ing.unit === 'L' ? 'selected' : ''}>L</option>
+          </select>
+          <button type="button" class="btn-remove-row" data-del-ing="${idx}" title="Remove ingredient">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      `).join('');
+
+      bindIngredientEvents();
+    }
+
+    function bindIngredientEvents() {
+      backdrop.querySelectorAll('.ingredient-row').forEach(row => {
+        const idx = Number(row.dataset.ingIdx);
+        row.querySelector('.ing-name').oninput = (e) => { stateIngredients[idx].name = e.target.value; };
+        row.querySelector('.ing-weight').oninput = (e) => { stateIngredients[idx].weight = e.target.value; };
+        row.querySelector('.ing-unit').onchange = (e) => { stateIngredients[idx].unit = e.target.value; };
+      });
+
+      backdrop.querySelectorAll('[data-del-ing]').forEach(btn => {
+        btn.onclick = () => {
+          const idx = Number(btn.dataset.delIng);
+          stateIngredients.splice(idx, 1);
+          renderIngredients();
+        };
+      });
+    }
+
+    // Add category button
+    backdrop.querySelector('#builderAddCategoryBtn').onclick = () => {
+      stateCategories.push({
+        name: 'NEW CATEGORY',
+        items: [{ name: '', pcs: '', weight: '', unit: 'kg', notes: '' }]
+      });
+      renderCategories();
+    };
+
+    // Add ingredient button
+    backdrop.querySelector('#builderAddIngredientBtn').onclick = () => {
+      stateIngredients.push({ name: '', weight: '', unit: 'kg' });
+      renderIngredients();
+    };
+
+    // Initial renders
+    renderCategories();
+    renderIngredients();
+
+    // Save Action
+    backdrop.querySelector('#builderSaveBtn').onclick = () => {
+      const confName = backdrop.querySelector('#builderConfName').value.trim();
+      const confDate = backdrop.querySelector('#builderConfDate').value;
+      const confPax = backdrop.querySelector('#builderConfPax').value.trim();
+      const confRemarks = backdrop.querySelector('#builderConfRemarks').value.trim();
+
+      if (!confName) {
+        App.toast('Please enter the Conference / Event Name.', 'error');
+        backdrop.querySelector('#builderConfName').focus();
+        return;
+      }
+
+      // Filter empty items
+      const cleanCategories = stateCategories
+        .map(cat => ({
+          name: cat.name.trim(),
+          items: (cat.items || []).filter(it => it.name && it.name.trim())
+        }))
+        .filter(cat => cat.name || cat.items.length > 0);
+
+      // Filter empty ingredients
+      const cleanIngredients = stateIngredients.filter(ing => ing.name && ing.name.trim());
+
+      const structuredMenu = {
+        categories: cleanCategories,
+        ingredients: cleanIngredients
+      };
+
+      const payload = {
+        'conference name': confName,
+        date: confDate || '',
+        pax: confPax || '',
+        remarks: confRemarks || '',
+        menu: JSON.stringify(structuredMenu)
+      };
+
+      const saveBtn = backdrop.querySelector('#builderSaveBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+      if (isEdit) {
+        google.script.run
+          .withSuccessHandler(() => {
+            App.toast('Conference menu updated successfully.');
+            close();
+            load();
+            App.refreshNotifications();
+          })
+          .withFailureHandler((err) => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Conference Menu';
+            App.toast(err && err.message ? err.message : 'Failed to update menu', 'error');
+          })
+          .updateMenu(record.mid, payload);
+      } else {
+        google.script.run
+          .withSuccessHandler(() => {
+            App.toast('Conference menu created successfully.');
+            close();
+            load();
+            App.refreshNotifications();
+          })
+          .withFailureHandler((err) => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Conference Menu';
+            App.toast(err && err.message ? err.message : 'Failed to create menu', 'error');
+          })
+          .createMenu(payload);
+      }
+    };
+  }
+
+  // ===== PRINTABLE PRODUCTION SHEET MODAL =====
+  function openProductionSheet(record) {
+    if (!record) return;
+
+    const parsed = parseMenuData(record.menu);
+    const dateStr = record.date ? App.fmtDate(record.date) : '';
+    const dayOfWeek = getDayOfWeek(dateStr);
+    const displayDate = formatDisplayDate(dateStr);
+    const paxStr = record.pax ? `${record.pax}PAX` : '';
+
+    // Document title matching exact style: SELWYN'S 70TH BIRTHDAY(30PAX) – SUNDAY-18/10/2026
+    const sheetHeaderTitle = `${String(record['conference name'] || 'EVENT').toUpperCase()}${paxStr ? `(${paxStr})` : ''} &ndash; ${dayOfWeek ? `${dayOfWeek}-` : ''}${displayDate || ''}`;
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal modal-lg" style="max-width: 900px;">
+        <div class="modal-header">
+          <h3 style="display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-file-lines" style="color:var(--primary);"></i>
+            <span>Kitchen Catering Production Sheet</span>
+          </h3>
+          <button class="modal-close" type="button" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="modal-body" style="padding: 24px; background: #f1f5f9;">
+          <!-- Printable Canvas -->
+          <div class="production-sheet-card" id="productionSheetPrintArea">
+            <div class="sheet-header-title">
+              ${sheetHeaderTitle}
+            </div>
+
+            <div class="sheet-content-grid">
+              <!-- Left Column: Dishes by Category -->
+              <div class="sheet-dishes-column">
+                ${parsed.categories.map(cat => `
+                  <div class="sheet-category-block">
+                    <div class="sheet-category-title">${App.esc(cat.name)}</div>
+                    ${(cat.items || []).map(it => {
+                      const pcsPart = it.pcs ? ` (${App.esc(it.pcs)})` : '';
+                      const weightPart = it.weight ? ` &mdash; ${App.esc(it.weight)}${App.esc(it.unit || 'kg')}` : '';
+                      const notesPart = it.notes ? ` <small style="color:#4b5563;">(${App.esc(it.notes)})</small>` : '';
+
+                      // Sub-item variant check (e.g. Sword Fish under Fish in herbs)
+                      const isSubVariant = !!it.notes && it.notes.toLowerCase().includes('fish');
+                      return `
+                        <div class="sheet-dish-line">
+                          <span>${App.esc(it.name)}</span>${pcsPart}${weightPart}${!isSubVariant ? notesPart : ''}
+                        </div>
+                        ${isSubVariant ? `
+                          <div class="sheet-dish-line sub-item">
+                            ${App.esc(it.notes)}${weightPart}
+                          </div>
+                        ` : ''}
+                      `;
+                    }).join('')}
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Right Column: Boxed Ingredient Use -->
+              <div class="sheet-ingredients-column">
+                ${parsed.ingredients && parsed.ingredients.length > 0 ? `
+                  <div class="sheet-ingredients-frame">
+                    <div class="sheet-ingredients-header">INGREDIENT USE</div>
+                    <div class="sheet-ingredients-list">
+                      ${parsed.ingredients.map(ing => `
+                        <div class="sheet-ingredient-row">
+                          <span class="sheet-ingredient-name">${App.esc(ing.name)}</span>
+                          <span class="sheet-ingredient-weight">${App.esc(ing.weight)}${App.esc(ing.unit || '')}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : `
+                  <div class="sheet-ingredients-frame" style="text-align:center;color:#6b7280;font-size:12px;padding:24px;">
+                    <em>No raw ingredient weights recorded for this menu.</em>
+                  </div>
+                `}
+              </div>
+            </div>
+
+            ${record.remarks ? `
+              <div style="margin-top:28px;padding-top:14px;border-top:1px dashed #d1d5db;font-size:12px;color:#4b5563;">
+                <strong>Remarks / Setup Instructions:</strong> ${App.esc(record.remarks)}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+          <button type="button" class="btn btn-secondary" data-close>Close</button>
+          <button type="button" class="btn btn-primary" id="sheetPrintBtn">
+            <i class="fa-solid fa-print"></i> Print Production Sheet
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-close]').onclick = close;
+
+    backdrop.querySelector('#sheetPrintBtn').onclick = () => {
+      window.print();
+    };
   }
 
   function remove(id) {
@@ -325,11 +881,11 @@ Pages.menu = (function () {
     }
     if (!window.confirm('Delete this conference record?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); refreshNotifications(); })
+      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); App.refreshNotifications(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteMenu(id);
   }
 
-  return { init, onShow, load };
+  return { init, onShow, load, openMenuBuilder, openProductionSheet };
 })();
 </script>

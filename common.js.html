@@ -1,5 +1,6 @@
 <script>
-const App = (function () {
+var Pages = window.Pages = window.Pages || {};
+var App = window.App = (function () {
   const ROUTES = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
   const TITLES = {
     dashboard: 'Dashboard', categories: 'Categories', items: 'Items',
@@ -390,12 +391,12 @@ const App = (function () {
     startSessionTimer();
     loadCurrentUser();
 
-    Pages.dashboard.init && Pages.dashboard.init();
-    Pages.categories.init && Pages.categories.init();
-    Pages.items.init && Pages.items.init();
-    Pages.menu.init && Pages.menu.init();
-    Pages.users.init && Pages.users.init();
-    Pages.settings.init && Pages.settings.init();
+    if (Pages.dashboard && typeof Pages.dashboard.init === 'function') Pages.dashboard.init();
+    if (Pages.categories && typeof Pages.categories.init === 'function') Pages.categories.init();
+    if (Pages.items && typeof Pages.items.init === 'function') Pages.items.init();
+    if (Pages.menu && typeof Pages.menu.init === 'function') Pages.menu.init();
+    if (Pages.users && typeof Pages.users.init === 'function') Pages.users.init();
+    if (Pages.settings && typeof Pages.settings.init === 'function') Pages.settings.init();
 
     const startPage = ROUTES.includes(initialPage) ? initialPage : 'dashboard';
     navigate(startPage, false);
@@ -809,6 +810,6 @@ const App = (function () {
   };
 })();
 
-const Pages = window.Pages || {};
+window.App = App;
 window.Pages = Pages;
 </script>
