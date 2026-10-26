@@ -9,9 +9,85 @@ Pages.users = (function () {
   let statusFilter = 'all';
   let sortOrder = 'name_asc';
 
-  function init() {
+  function ensurePageMarkup() {
+    const pageEl = document.getElementById('page-users');
+    if (!pageEl) return;
+
     const addBtn = document.getElementById('usersAddBtn');
-    if (addBtn) addBtn.addEventListener('click', () => openForm());
+    const wrap = document.getElementById('usersTableWrap');
+    const searchInput = document.getElementById('usersSearchInput');
+
+    if (!addBtn || !wrap || !searchInput) {
+      pageEl.innerHTML = `
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-users"></i> Users Management</h3>
+    <button class="btn btn-primary" id="usersAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add User
+    </button>
+  </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="usersSearchInput" placeholder="Search by name, username, email, department, or user ID...">
+        <button class="search-clear-btn" id="usersSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-user-shield"></i> Role:
+        <select class="filter-select" id="usersRoleFilter" aria-label="Filter by role">
+          <option value="all">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="staff">Staff</option>
+          <option value="viewer">Viewer</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-circle-check"></i> Status:
+        <select class="filter-select" id="usersStatusFilter" aria-label="Filter by status">
+          <option value="all">All Statuses</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="usersSortOrder" aria-label="Sort users">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="username_asc">Username (A &rarr; Z)</option>
+          <option value="role_asc">Role (A &rarr; Z)</option>
+          <option value="id_desc">Newest First</option>
+          <option value="id_asc">Oldest First</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="usersResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="usersTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading users...</div>
+  </div>
+</div>`;
+      bindEvents();
+    }
+  }
+
+  function bindEvents() {
+    const addBtn = document.getElementById('usersAddBtn');
+    if (addBtn) addBtn.onclick = () => openForm();
 
     const searchInput = document.getElementById('usersSearchInput');
     const clearBtn = document.getElementById('usersSearchClearBtn');
@@ -21,16 +97,16 @@ Pages.users = (function () {
     const resetBtn = document.getElementById('usersResetFiltersBtn');
 
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.oninput = (e) => {
         searchQuery = e.target.value.trim();
         if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
+      clearBtn.onclick = () => {
         if (searchInput) {
           searchInput.value = '';
           searchInput.focus();
@@ -39,35 +115,35 @@ Pages.users = (function () {
         clearBtn.style.display = 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (roleSelect) {
-      roleSelect.addEventListener('change', (e) => {
+      roleSelect.onchange = (e) => {
         roleFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (statusSelect) {
-      statusSelect.addEventListener('change', (e) => {
+      statusSelect.onchange = (e) => {
         statusFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
+      sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.onclick = () => {
         searchQuery = '';
         roleFilter = 'all';
         statusFilter = 'all';
@@ -81,8 +157,13 @@ Pages.users = (function () {
         if (sortSelect) sortSelect.value = 'name_asc';
 
         render();
-      });
+      };
     }
+  }
+
+  function init() {
+    ensurePageMarkup();
+    bindEvents();
   }
 
   function updateControls() {
@@ -93,21 +174,19 @@ Pages.users = (function () {
   }
 
   function onShow() {
+    ensurePageMarkup();
+    bindEvents();
     updateControls();
     load();
   }
 
   function getTableWrap() {
+    ensurePageMarkup();
     let wrap = document.getElementById('usersTableWrap');
     if (!wrap) {
       const pageEl = document.getElementById('page-users');
       if (pageEl) {
         wrap = pageEl.querySelector('#usersTableWrap');
-        if (!wrap) {
-          wrap = document.createElement('div');
-          wrap.id = 'usersTableWrap';
-          pageEl.appendChild(wrap);
-        }
       }
     }
     return wrap;

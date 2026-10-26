@@ -8,9 +8,72 @@ Pages.items = (function () {
   let lengthFilter = 'all';
   let sortOrder = 'name_asc';
 
-  function init() {
+  function ensurePageMarkup() {
+    const pageEl = document.getElementById('page-items');
+    if (!pageEl) return;
+
     const addBtn = document.getElementById('itemsAddBtn');
-    if (addBtn) addBtn.addEventListener('click', () => openForm());
+    const wrap = document.getElementById('itemsTableWrap');
+    const searchInput = document.getElementById('itemsSearchInput');
+
+    if (!addBtn || !wrap || !searchInput) {
+      pageEl.innerHTML = `
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-boxes-stacked"></i> Items Inventory</h3>
+    <button class="btn btn-primary" id="itemsAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Item
+    </button>
+  </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="itemsSearchInput" placeholder="Search by item name or ID...">
+        <button class="search-clear-btn" id="itemsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-text-width"></i> Length:
+        <select class="filter-select" id="itemsLengthFilter" aria-label="Filter by item name length">
+          <option value="all">All Lengths</option>
+          <option value="short">Short (&le; 8 chars)</option>
+          <option value="long">Long (&gt; 12 chars)</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="itemsSortOrder" aria-label="Sort items">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="id_desc">ID (Newest First)</option>
+          <option value="id_asc">ID (Oldest First)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="itemsResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="itemsTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading items...</div>
+  </div>
+</div>`;
+      bindEvents();
+    }
+  }
+
+  function bindEvents() {
+    const addBtn = document.getElementById('itemsAddBtn');
+    if (addBtn) addBtn.onclick = () => openForm();
 
     const searchInput = document.getElementById('itemsSearchInput');
     const clearBtn = document.getElementById('itemsSearchClearBtn');
@@ -19,16 +82,16 @@ Pages.items = (function () {
     const resetBtn = document.getElementById('itemsResetFiltersBtn');
 
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.oninput = (e) => {
         searchQuery = e.target.value.trim();
         if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
+      clearBtn.onclick = () => {
         if (searchInput) {
           searchInput.value = '';
           searchInput.focus();
@@ -37,27 +100,27 @@ Pages.items = (function () {
         clearBtn.style.display = 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (lengthSelect) {
-      lengthSelect.addEventListener('change', (e) => {
+      lengthSelect.onchange = (e) => {
         lengthFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
+      sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.onclick = () => {
         searchQuery = '';
         lengthFilter = 'all';
         sortOrder = 'name_asc';
@@ -69,8 +132,13 @@ Pages.items = (function () {
         if (sortSelect) sortSelect.value = 'name_asc';
 
         render();
-      });
+      };
     }
+  }
+
+  function init() {
+    ensurePageMarkup();
+    bindEvents();
   }
 
   function updateControls() {
@@ -81,21 +149,19 @@ Pages.items = (function () {
   }
 
   function onShow() {
+    ensurePageMarkup();
+    bindEvents();
     updateControls();
     load();
   }
 
   function getTableWrap() {
+    ensurePageMarkup();
     let wrap = document.getElementById('itemsTableWrap');
     if (!wrap) {
       const pageEl = document.getElementById('page-items');
       if (pageEl) {
         wrap = pageEl.querySelector('#itemsTableWrap');
-        if (!wrap) {
-          wrap = document.createElement('div');
-          wrap.id = 'itemsTableWrap';
-          pageEl.appendChild(wrap);
-        }
       }
     }
     return wrap;

@@ -19,9 +19,87 @@ Pages.menu = (function () {
     'SIDE ORDERS (A LA CARTE)'
   ];
 
-  function init() {
+  function ensurePageMarkup() {
+    const pageEl = document.getElementById('page-menu');
+    if (!pageEl) return;
+
     const addBtn = document.getElementById('menuAddBtn');
-    if (addBtn) addBtn.addEventListener('click', () => openMenuBuilder());
+    const wrap = document.getElementById('menuTableWrap');
+    const searchInput = document.getElementById('menuSearchInput');
+
+    if (!addBtn || !wrap || !searchInput) {
+      pageEl.innerHTML = `
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-calendar-days"></i> Conference Records</h3>
+    <button class="btn btn-primary" id="menuAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Conference
+    </button>
+  </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="menuSearchInput" placeholder="Search by conference name, menu items, remarks, or ID...">
+        <button class="search-clear-btn" id="menuSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-clock"></i> Timeline:
+        <select class="filter-select" id="menuTimelineFilter" aria-label="Filter by timeline">
+          <option value="all">All Conferences</option>
+          <option value="upcoming">Upcoming (Future)</option>
+          <option value="past">Past</option>
+          <option value="this_month">This Month</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-users-between-lines"></i> Pax Size:
+        <select class="filter-select" id="menuPaxFilter" aria-label="Filter by pax size">
+          <option value="all">All Group Sizes</option>
+          <option value="small">Small (&lt; 50 pax)</option>
+          <option value="medium">Medium (50 &ndash; 150 pax)</option>
+          <option value="large">Large (&gt; 150 pax)</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="menuSortOrder" aria-label="Sort conferences">
+          <option value="date_asc">Date (Earliest First)</option>
+          <option value="date_desc">Date (Latest First)</option>
+          <option value="name_asc">Conference Name (A &rarr; Z)</option>
+          <option value="pax_desc">Pax (Highest First)</option>
+          <option value="pax_asc">Pax (Lowest First)</option>
+          <option value="id_desc">Newest First</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="menuResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="menuTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading conferences...</div>
+  </div>
+</div>`;
+      bindEvents();
+    }
+  }
+
+  function bindEvents() {
+    const addBtn = document.getElementById('menuAddBtn');
+    if (addBtn) {
+      addBtn.onclick = () => openMenuBuilder();
+    }
 
     const searchInput = document.getElementById('menuSearchInput');
     const clearBtn = document.getElementById('menuSearchClearBtn');
@@ -31,16 +109,16 @@ Pages.menu = (function () {
     const resetBtn = document.getElementById('menuResetFiltersBtn');
 
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.oninput = (e) => {
         searchQuery = e.target.value.trim();
         if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
+      clearBtn.onclick = () => {
         if (searchInput) {
           searchInput.value = '';
           searchInput.focus();
@@ -49,35 +127,35 @@ Pages.menu = (function () {
         clearBtn.style.display = 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (timelineSelect) {
-      timelineSelect.addEventListener('change', (e) => {
+      timelineSelect.onchange = (e) => {
         timelineFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (paxSelect) {
-      paxSelect.addEventListener('change', (e) => {
+      paxSelect.onchange = (e) => {
         paxFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
+      sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.onclick = () => {
         searchQuery = '';
         timelineFilter = 'all';
         paxFilter = 'all';
@@ -91,9 +169,13 @@ Pages.menu = (function () {
         if (sortSelect) sortSelect.value = 'date_asc';
 
         render();
-      });
+      };
     }
+  }
 
+  function init() {
+    ensurePageMarkup();
+    bindEvents();
     loadMasterLookups();
   }
 
@@ -105,6 +187,8 @@ Pages.menu = (function () {
   }
 
   function onShow() {
+    ensurePageMarkup();
+    bindEvents();
     updateControls();
     loadMasterLookups();
     load();
@@ -126,16 +210,12 @@ Pages.menu = (function () {
   }
 
   function getTableWrap() {
+    ensurePageMarkup();
     let wrap = document.getElementById('menuTableWrap');
     if (!wrap) {
       const pageEl = document.getElementById('page-menu');
       if (pageEl) {
         wrap = pageEl.querySelector('#menuTableWrap');
-        if (!wrap) {
-          wrap = document.createElement('div');
-          wrap.id = 'menuTableWrap';
-          pageEl.appendChild(wrap);
-        }
       }
     }
     return wrap;

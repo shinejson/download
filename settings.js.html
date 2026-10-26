@@ -8,9 +8,73 @@ Pages.settings = (function () {
   let targetFilter = 'all';
   let sortOrder = 'key_asc';
 
-  function init() {
+  function ensurePageMarkup() {
+    const pageEl = document.getElementById('page-settings');
+    if (!pageEl) return;
+
     const addBtn = document.getElementById('settingsAddBtn');
-    if (addBtn) addBtn.addEventListener('click', () => openForm());
+    const wrap = document.getElementById('settingsTableWrap');
+    const searchInput = document.getElementById('settingsSearchInput');
+
+    if (!addBtn || !wrap || !searchInput) {
+      pageEl.innerHTML = `
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-sliders"></i> Application Settings</h3>
+    <button class="btn btn-primary" id="settingsAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Setting
+    </button>
+  </div>
+  <p style="color:var(--text-light); font-size:13px; margin: -6px 0 16px 0;">
+    Centralized key/value configuration store for application-wide behavior and parameters.
+  </p>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search setting keys or values...">
+        <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-bullseye"></i> Search Target:
+        <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
+          <option value="all">Key &amp; Value</option>
+          <option value="key">Key Only</option>
+          <option value="value">Value Only</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
+          <option value="key_asc">Key (A &rarr; Z)</option>
+          <option value="key_desc">Key (Z &rarr; A)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="settingsTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading settings...</div>
+  </div>
+</div>`;
+      bindEvents();
+    }
+  }
+
+  function bindEvents() {
+    const addBtn = document.getElementById('settingsAddBtn');
+    if (addBtn) addBtn.onclick = () => openForm();
 
     const searchInput = document.getElementById('settingsSearchInput');
     const clearBtn = document.getElementById('settingsSearchClearBtn');
@@ -19,16 +83,16 @@ Pages.settings = (function () {
     const resetBtn = document.getElementById('settingsResetFiltersBtn');
 
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      searchInput.oninput = (e) => {
         searchQuery = e.target.value.trim();
         if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
+      clearBtn.onclick = () => {
         if (searchInput) {
           searchInput.value = '';
           searchInput.focus();
@@ -37,27 +101,27 @@ Pages.settings = (function () {
         clearBtn.style.display = 'none';
         page = 1;
         render();
-      });
+      };
     }
 
     if (targetSelect) {
-      targetSelect.addEventListener('change', (e) => {
+      targetSelect.onchange = (e) => {
         targetFilter = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
+      sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
         page = 1;
         render();
-      });
+      };
     }
 
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.onclick = () => {
         searchQuery = '';
         targetFilter = 'all';
         sortOrder = 'key_asc';
@@ -69,8 +133,13 @@ Pages.settings = (function () {
         if (sortSelect) sortSelect.value = 'key_asc';
 
         render();
-      });
+      };
     }
+  }
+
+  function init() {
+    ensurePageMarkup();
+    bindEvents();
   }
 
   function updateControls() {
@@ -81,21 +150,19 @@ Pages.settings = (function () {
   }
 
   function onShow() {
+    ensurePageMarkup();
+    bindEvents();
     updateControls();
     load();
   }
 
   function getTableWrap() {
+    ensurePageMarkup();
     let wrap = document.getElementById('settingsTableWrap');
     if (!wrap) {
       const pageEl = document.getElementById('page-settings');
       if (pageEl) {
         wrap = pageEl.querySelector('#settingsTableWrap');
-        if (!wrap) {
-          wrap = document.createElement('div');
-          wrap.id = 'settingsTableWrap';
-          pageEl.appendChild(wrap);
-        }
       }
     }
     return wrap;

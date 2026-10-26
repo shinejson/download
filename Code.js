@@ -46,14 +46,24 @@ function doGet(e) {
 function include(filename) {
   if (!filename) return '';
   const clean = String(filename).trim();
-  const candidates = [
-    clean,
-    clean.replace(/\.html$/, ''),
-    clean + '.html',
-    clean.replace(/\.js$/, ''),
-    clean + '.js',
-    clean.replace(/\.js$/, '') + '.js.html'
-  ];
+  const isJs = clean.endsWith('.js') || clean.endsWith('.js.html');
+  let candidates = [];
+  if (isJs) {
+    const base = clean.replace(/\.js(\.html)?$/, '');
+    candidates = [
+      clean,
+      base + '.js.html',
+      base + '.js',
+      base
+    ];
+  } else {
+    const base = clean.replace(/\.html$/, '');
+    candidates = [
+      clean,
+      base + '.html',
+      base
+    ];
+  }
   for (let i = 0; i < candidates.length; i++) {
     try {
       return HtmlService.createHtmlOutputFromFile(candidates[i]).getContent();
