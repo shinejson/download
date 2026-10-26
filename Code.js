@@ -66,7 +66,19 @@ function include(filename) {
   }
   for (let i = 0; i < candidates.length; i++) {
     try {
-      return HtmlService.createHtmlOutputFromFile(candidates[i]).getContent();
+      let content = HtmlService.createHtmlOutputFromFile(candidates[i]).getContent();
+      if (content !== undefined && content !== null && content !== '') {
+        const trimmed = String(content).trim();
+        if (isJs) {
+          // If the script partial does not start with <script>, automatically wrap it
+          // so it safely executes as JavaScript instead of rendering as text on the webpage!
+          if (!trimmed.toLowerCase().startsWith('<script')) {
+            return '<script>\n' + trimmed + '\n</script>';
+          }
+          return trimmed;
+        }
+        return content;
+      }
     } catch (e) {}
   }
   return '';
