@@ -1,107 +1,67 @@
 <script>
-Pages.users = (function () {
+Pages.settings = (function () {
   let records = [];
 
   function init() {
-    document.getElementById('usersAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('usersSearch').addEventListener('input', (e) => render(e.target.value));
+    document.getElementById('settingsAddBtn').addEventListener('click', () => openForm());
+    document.getElementById('settingsSearch').addEventListener('input', (e) => render(e.target.value));
   }
 
   function onShow() { load(); }
 
   function load() {
-    const wrap = document.getElementById('usersTableWrap');
+    const wrap = document.getElementById('settingsTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
         wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
-      .getUsers();
+      .getSettings();
   }
 
   function render(filter = '') {
-    const wrap = document.getElementById('usersTableWrap');
+    const wrap = document.getElementById('settingsTableWrap');
     const q = filter.toLowerCase();
     const filtered = !q ? records : records.filter(r =>
       Object.values(r).some(v => String(v).toLowerCase().includes(q))
     );
     App.renderTable(
       wrap,
-      ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions'],
+      ['Key', 'Value', 'Actions'],
       filtered,
       r => `
         <tr>
-          <td><code>${App.esc(r.userid)}</code></td>
-          <td>${App.esc(r.firstname)} ${App.esc(r.lastname)}</td>
-          <td>${App.esc(r.contact)}</td>
-          <td>${App.esc(r.email)}</td>
-          <td>${App.esc(r.username)}</td>
-          <td>${App.esc(r.role)}</td>
-          <td>${App.esc(r.department)}</td>
-          <td>${statusBadge(r.status)}</td>
+          <td><code>${App.esc(r.key)}</code></td>
+          <td>${App.esc(r.value)}</td>
           <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}">Delete</button>
+            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}">Edit</button>
           </td>
         </tr>
       `,
-      'No users yet.'
+      'No settings yet.'
     );
     wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x.userid) === b.dataset.edit));
+      b.onclick = () => openForm(records.find(x => String(x.key) === b.dataset.edit));
     });
-    wrap.querySelectorAll('[data-del]').forEach(b => {
-      b.onclick = () => remove(b.dataset.del);
-    });
-  }
-
-  function statusBadge(s) {
-    const active = String(s || '').toLowerCase() === 'active';
-    const color = active ? '#10b981' : '#ef4444';
-    return `<span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; background:${color}20; color:${color};">${App.esc(s || '—')}</span>`;
   }
 
   function openForm(record) {
     const isEdit = !!record;
     App.openModal({
-      title: isEdit ? 'Edit User' : 'New User',
+      title: isEdit ? 'Edit Setting' : 'New Setting',
       fields: [
-        { name: 'firstname', label: 'First name', value: record ? record.firstname : '' },
-        { name: 'lastname', label: 'Last name', value: record ? record.lastname : '' },
-        { name: 'contact', label: 'Contact', value: record ? record.contact : '' },
-        { name: 'email', label: 'Email', type: 'email', value: record ? record.email : '' },
-        { name: 'username', label: 'Username', value: record ? record.username : '' },
-        { name: 'password', label: isEdit ? 'Password (leave blank to keep current)' : 'Password', type: 'password', value: '' },
-        { name: 'role', label: 'Role', value: record ? record.role : '' },
-        { name: 'department', label: 'Department', value: record ? record.department : '' },
-        { name: 'status', label: 'Status', type: 'select', value: record ? record.status : 'active',
-          options: [{value:'active', label:'Active'}, {value:'inactive', label:'Inactive'}] }
+        { name: 'key', label: 'Key', value: record ? record.key : '', readonly: isEdit },
+        { name: 'value', label: 'Value', type: 'textarea', value: record ? record.value : '' }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data.username) return reject(new Error('Username is required'));
-        if (isEdit) {
-          if (!data.password) delete data.password;
-          google.script.run
-            .withSuccessHandler(() => { App.toast('User updated'); load(); resolve(); })
-            .withFailureHandler(reject)
-            .updateUser(record.userid, data);
-        } else {
-          google.script.run
-            .withSuccessHandler(() => { App.toast('User created'); load(); resolve(); })
-            .withFailureHandler(reject)
-            .createUser(data);
-        }
+        if (!data.key) return reject(new Error('Key is required'));
+        google.script.run
+          .withSuccessHandler(() => { App.toast('Setting saved'); load(); resolve(); })
+          .withFailureHandler(reject)
+          .saveSetting(data.key, data.value || '');
       })
     });
-  }
-
-  function remove(id) {
-    if (!window.confirm('Delete this user?')) return;
-    google.script.run
-      .withSuccessHandler(() => { App.toast('User deleted'); load(); })
-      .withFailureHandler(err => App.toast(err.message, 'error'))
-      .deleteUser(id);
   }
 
   return { init, onShow, load };

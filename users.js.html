@@ -1,104 +1,107 @@
 <script>
-Pages.menu = (function () {
+Pages.users = (function () {
   let records = [];
-  let itemOptions = [];
 
   function init() {
-    document.getElementById('menuAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('menuSearch').addEventListener('input', (e) => render(e.target.value));
-    loadItems();
+    document.getElementById('usersAddBtn').addEventListener('click', () => openForm());
+    document.getElementById('usersSearch').addEventListener('input', (e) => render(e.target.value));
   }
 
   function onShow() { load(); }
 
-  function loadItems() {
-    google.script.run
-      .withSuccessHandler(data => { itemOptions = data || []; })
-      .withFailureHandler(() => { itemOptions = []; })
-      .getItems();
-  }
-
   function load() {
-    const wrap = document.getElementById('menuTableWrap');
+    const wrap = document.getElementById('usersTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
         wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
-      .getMenuRecords();
+      .getUsers();
   }
 
   function render(filter = '') {
-    const wrap = document.getElementById('menuTableWrap');
+    const wrap = document.getElementById('usersTableWrap');
     const q = filter.toLowerCase();
     const filtered = !q ? records : records.filter(r =>
       Object.values(r).some(v => String(v).toLowerCase().includes(q))
     );
     App.renderTable(
       wrap,
-      ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions'],
+      ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions'],
       filtered,
       r => `
         <tr>
-          <td><code>${App.esc(r.mid)}</code></td>
-          <td>${App.esc(r['conference name'])}</td>
-          <td>${App.esc(r.date)}</td>
-          <td>${App.esc(r.pax)}</td>
-          <td>${App.esc(r.menu)}</td>
-          <td>${App.esc(r.remarks)}</td>
+          <td><code>${App.esc(r.userid)}</code></td>
+          <td>${App.esc(r.firstname)} ${App.esc(r.lastname)}</td>
+          <td>${App.esc(r.contact)}</td>
+          <td>${App.esc(r.email)}</td>
+          <td>${App.esc(r.username)}</td>
+          <td>${App.esc(r.role)}</td>
+          <td>${App.esc(r.department)}</td>
+          <td>${statusBadge(r.status)}</td>
           <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>
+            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}">Edit</button>
+            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}">Delete</button>
           </td>
         </tr>
       `,
-      'No conferences yet.'
+      'No users yet.'
     );
     wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
+      b.onclick = () => openForm(records.find(x => String(x.userid) === b.dataset.edit));
     });
     wrap.querySelectorAll('[data-del]').forEach(b => {
       b.onclick = () => remove(b.dataset.del);
     });
   }
 
+  function statusBadge(s) {
+    const active = String(s || '').toLowerCase() === 'active';
+    const color = active ? '#10b981' : '#ef4444';
+    return `<span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; background:${color}20; color:${color};">${App.esc(s || '—')}</span>`;
+  }
+
   function openForm(record) {
     const isEdit = !!record;
-    const menuVal = record ? record.menu : '';
-    const fields = [
-      { name: 'conference name', label: 'Conference name', value: record ? record['conference name'] : '' },
-      { name: 'date', label: 'Date', type: 'date', value: record ? record.date : '' },
-      { name: 'pax', label: 'Pax', type: 'number', value: record ? record.pax : '' },
-      { name: 'menu', label: 'Menu (item name)', value: menuVal },
-      { name: 'remarks', label: 'Remarks', type: 'textarea', value: record ? record.remarks : '' }
-    ];
     App.openModal({
-      title: isEdit ? 'Edit Conference' : 'New Conference',
-      fields: fields,
+      title: isEdit ? 'Edit User' : 'New User',
+      fields: [
+        { name: 'firstname', label: 'First name', value: record ? record.firstname : '' },
+        { name: 'lastname', label: 'Last name', value: record ? record.lastname : '' },
+        { name: 'contact', label: 'Contact', value: record ? record.contact : '' },
+        { name: 'email', label: 'Email', type: 'email', value: record ? record.email : '' },
+        { name: 'username', label: 'Username', value: record ? record.username : '' },
+        { name: 'password', label: isEdit ? 'Password (leave blank to keep current)' : 'Password', type: 'password', value: '' },
+        { name: 'role', label: 'Role', value: record ? record.role : '' },
+        { name: 'department', label: 'Department', value: record ? record.department : '' },
+        { name: 'status', label: 'Status', type: 'select', value: record ? record.status : 'active',
+          options: [{value:'active', label:'Active'}, {value:'inactive', label:'Inactive'}] }
+      ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data['conference name']) return reject(new Error('Conference name is required'));
+        if (!data.username) return reject(new Error('Username is required'));
         if (isEdit) {
+          if (!data.password) delete data.password;
           google.script.run
-            .withSuccessHandler(() => { App.toast('Conference updated'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('User updated'); load(); resolve(); })
             .withFailureHandler(reject)
-            .updateMenu(record.mid, data);
+            .updateUser(record.userid, data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Conference created'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('User created'); load(); resolve(); })
             .withFailureHandler(reject)
-            .createMenu(data);
+            .createUser(data);
         }
       })
     });
   }
 
   function remove(id) {
-    if (!window.confirm('Delete this conference record?')) return;
+    if (!window.confirm('Delete this user?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); })
+      .withSuccessHandler(() => { App.toast('User deleted'); load(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
-      .deleteMenu(id);
+      .deleteUser(id);
   }
 
   return { init, onShow, load };

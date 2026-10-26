@@ -1,13 +1,196 @@
-<div class="card">
-  <h3>⚙️ Application Settings</h3>
-  <p style="color:var(--text-light); font-size:13px; margin-bottom:14px;">
-    Key/value store. Use for app configuration flags.
-  </p>
-  <div class="table-toolbar">
-    <input type="text" class="search" id="settingsSearch" placeholder="Search settings...">
-    <button class="btn btn-primary" id="settingsAddBtn">+ Add Setting</button>
-  </div>
-  <div id="settingsTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading...</div>
-  </div>
-</div>
+<script>
+const App = (function () {
+  const ROUTES = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
+  const TITLES = {
+    dashboard: 'Dashboard', categories: 'Categories', items: 'Items',
+    menu: 'Menu (Conferences)', users: 'Users', settings: 'Settings'
+  };
+
+  let currentPage = 'dashboard';
+
+  function init(initialPage) {
+    // Sidebar toggle
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('hidden');
+      document.getElementById('main').classList.toggle('full');
+      document.getElementById('sidebar').classList.toggle('mobile-open');
+    });
+
+    // Nav links
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const page = a.dataset.page;
+        navigate(page);
+      });
+    });
+
+    // Hash change
+    window.addEventListener('hashchange', () => {
+      const page = (location.hash || '#dashboard').substring(1);
+      if (ROUTES.includes(page)) navigate(page, false);
+    });
+
+    // Load page modules
+    Pages.dashboard.init && Pages.dashboard.init();
+    Pages.categories.init && Pages.categories.init();
+    Pages.items.init && Pages.items.init();
+    Pages.menu.init && Pages.menu.init();
+    Pages.users.init && Pages.users.init();
+    Pages.settings.init && Pages.settings.init();
+
+    // Initial navigation
+    const startPage = ROUTES.includes(initialPage) ? initialPage : 'dashboard';
+    navigate(startPage, false);
+  }
+
+  function navigate(page, setHash = true) {
+    if (!ROUTES.includes(page)) page = 'dashboard';
+    currentPage = page;
+
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById('page-' + page);
+    if (el) el.classList.add('active');
+
+    // Nav active state
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.classList.toggle('active', a.dataset.page === page);
+    });
+
+    // Title
+    document.getElementById('topnavTitle').textContent = TITLES[page] || page;
+
+    // Hash
+    if (setHash && location.hash !== '#' + page) {
+      location.hash = page;
+    }
+
+    // On-show hook
+    if (Pages[page] && Pages[page].onShow) {
+      try { Pages[page].onShow(); } catch (err) { console.error(err); }
+    }
+
+    // Mobile: close sidebar
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.remove('mobile-open');
+    }
+  }
+
+  function toast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + (type === 'error' ? 'error' : '');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, 2500);
+  }
+
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function fmtDate(d) {
+    if (!d) return '';
+    try {
+      if (d instanceof Date) return d.toISOString().slice(0, 10);
+      return String(d).slice(0, 10);
+    } catch { return String(d); }
+  }
+
+  function openModal(opts) {
+    // opts: { title, fields: [{name, label, type, value, options}], onSave }
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h3>${esc(opts.title)}</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="modalForm">
+            ${opts.fields.map(f => renderField_(f)).join('')}
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-cancel>Cancel</button>
+          <button class="btn btn-primary" data-save>Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-cancel]').onclick = close;
+    backdrop.querySelector('[data-save]').onclick = () => {
+      const form = backdrop.querySelector('#modalForm');
+      const data = {};
+      opts.fields.forEach(f => {
+        const input = form.querySelector(`[name="${f.name}"]`);
+        if (input) data[f.name] = input.value;
+      });
+      Promise.resolve(opts.onSave(data))
+        .then(() => close())
+        .catch(err => {
+          App.toast(err.message || 'Error', 'error');
+          console.error(err);
+        });
+    };
+    // Focus first input
+    const first = backdrop.querySelector('input, select, textarea');
+    if (first) first.focus();
+  }
+
+  function renderField_(f) {
+    const val = f.value !== undefined ? f.value : '';
+    if (f.type === 'select') {
+      const opts = (f.options || []).map(o => {
+        const v = typeof o === 'string' ? o : o.value;
+        const label = typeof o === 'string' ? o : o.label;
+        const sel = String(v) === String(val) ? 'selected' : '';
+        return `<option value="${esc(v)}" ${sel}>${esc(label)}</option>`;
+      }).join('');
+      return `<div class="form-group"><label>${esc(f.label)}</label>
+        <select name="${esc(f.name)}">${opts}</select></div>`;
+    }
+    if (f.type === 'textarea') {
+      return `<div class="form-group"><label>${esc(f.label)}</label>
+        <textarea name="${esc(f.name)}" rows="3">${esc(val)}</textarea></div>`;
+    }
+    return `<div class="form-group"><label>${esc(f.label)}</label>
+      <input type="${esc(f.type || 'text')}" name="${esc(f.name)}" value="${esc(val)}" ${f.readonly ? 'readonly' : ''}></div>`;
+  }
+
+  function confirmDelete(msg) {
+    return new Promise((resolve) => {
+      if (window.confirm(msg || 'Delete this record?')) resolve();
+    });
+  }
+
+  function renderTable(container, headers, rows, rowRenderer, emptyMsg) {
+    if (!rows || rows.length === 0) {
+      container.innerHTML = `<div class="empty-state">${esc(emptyMsg || 'No records found.')}</div>`;
+      return;
+    }
+    const thead = '<tr>' + headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>';
+    const tbody = rows.map((r, i) => rowRenderer(r, i)).join('');
+    container.innerHTML = `<table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  }
+
+  return {
+    init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable,
+    get currentPage() { return currentPage; }
+  };
+})();
+
+// Registry for page modules (filled in by each page's JS file)
+const Pages = window.Pages || {};
+window.Pages = Pages;
+</script>

@@ -1,20 +1,22 @@
-const ITEMS_SHEET = 'items';
-const ITEMS_ID = 'ID';
+const MENU_SHEET = 'menu';
+const MENU_ID = 'mid';
 
-function getItems() {
-  return readAll_(ITEMS_SHEET);
+function getMenuRecords() {
+  return readAll_(MENU_SHEET);
 }
 
-function createItem(data) {
-  if (!data || !data['Items Name']) throw new Error('Items Name is required');
-  if (!data['ID']) data['ID'] = genId_('ITM');
-  return createRow_(ITEMS_SHEET, data);
+function createMenu(data) {
+  if (!data || !data['conference name']) throw new Error('Conference name is required');
+  if (!data['mid']) data['mid'] = genId_('MEN');
+  if (data['date']) data['date'] = new Date(data['date']);
+  return createRow_(MENU_SHEET, data);
 }
 
-function updateItem(id, data) {
-  return updateRow_(ITEMS_SHEET, ITEMS_ID, id, data);
+function updateMenu(id, data) {
+  if (data['date']) data['date'] = new Date(data['date']);
+  return updateRow_(MENU_SHEET, MENU_ID, id, data);
 }
 
-function deleteItem(id) {
-  return deleteRow_(ITEMS_SHEET, ITEMS_ID, id);
+function deleteMenu(id) {
+  return deleteRow_(MENU_SHEET, MENU_ID, id);
 }

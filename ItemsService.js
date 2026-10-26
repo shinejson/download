@@ -1,20 +1,20 @@
-const CATEGORIES_SHEET = 'categories';
-const CATEGORIES_ID = 'ID';
+const ITEMS_SHEET = 'items';
+const ITEMS_ID = 'ID';
 
-function getCategories() {
-  return readAll_(CATEGORIES_SHEET);
+function getItems() {
+  return readAll_(ITEMS_SHEET);
 }
 
-function createCategory(data) {
-  if (!data || !data['Categories name']) throw new Error('Categories name is required');
-  if (!data['ID']) data['ID'] = genId_('CAT');
-  return createRow_(CATEGORIES_SHEET, data);
+function createItem(data) {
+  if (!data || !data['Items Name']) throw new Error('Items Name is required');
+  if (!data['ID']) data['ID'] = genId_('ITM');
+  return createRow_(ITEMS_SHEET, data);
 }
 
-function updateCategory(id, data) {
-  return updateRow_(CATEGORIES_SHEET, CATEGORIES_ID, id, data);
+function updateItem(id, data) {
+  return updateRow_(ITEMS_SHEET, ITEMS_ID, id, data);
 }
 
-function deleteCategory(id) {
-  return deleteRow_(CATEGORIES_SHEET, CATEGORIES_ID, id);
+function deleteItem(id) {
+  return deleteRow_(ITEMS_SHEET, ITEMS_ID, id);
 }

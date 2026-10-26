@@ -4,7 +4,7 @@
  */
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) || 'dashboard';
-  const template = HtmlService.createTemplateFromFile('client/index');
+  const template = HtmlService.createTemplateFromFile('index');
   template.page = page;
   template.sheetId = getActiveSpreadsheetId_();
 

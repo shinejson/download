@@ -1,50 +1,62 @@
 <script>
-Pages.items = (function () {
+Pages.menu = (function () {
   let records = [];
+  let itemOptions = [];
 
   function init() {
-    document.getElementById('itemsAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('itemsSearch').addEventListener('input', (e) => render(e.target.value));
+    document.getElementById('menuAddBtn').addEventListener('click', () => openForm());
+    document.getElementById('menuSearch').addEventListener('input', (e) => render(e.target.value));
+    loadItems();
   }
 
   function onShow() { load(); }
 
+  function loadItems() {
+    google.script.run
+      .withSuccessHandler(data => { itemOptions = data || []; })
+      .withFailureHandler(() => { itemOptions = []; })
+      .getItems();
+  }
+
   function load() {
-    const wrap = document.getElementById('itemsTableWrap');
+    const wrap = document.getElementById('menuTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
         wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
-      .getItems();
+      .getMenuRecords();
   }
 
   function render(filter = '') {
-    const wrap = document.getElementById('itemsTableWrap');
+    const wrap = document.getElementById('menuTableWrap');
     const q = filter.toLowerCase();
     const filtered = !q ? records : records.filter(r =>
-      String(r['ID']).toLowerCase().includes(q) ||
-      String(r['Items Name']).toLowerCase().includes(q)
+      Object.values(r).some(v => String(v).toLowerCase().includes(q))
     );
     App.renderTable(
       wrap,
-      ['ID', 'Items Name', 'Actions'],
+      ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions'],
       filtered,
       r => `
         <tr>
-          <td><code>${App.esc(r['ID'])}</code></td>
-          <td>${App.esc(r['Items Name'])}</td>
+          <td><code>${App.esc(r.mid)}</code></td>
+          <td>${App.esc(r['conference name'])}</td>
+          <td>${App.esc(r.date)}</td>
+          <td>${App.esc(r.pax)}</td>
+          <td>${App.esc(r.menu)}</td>
+          <td>${App.esc(r.remarks)}</td>
           <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}">Delete</button>
+            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>
+            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>
           </td>
         </tr>
       `,
-      'No items yet.'
+      'No conferences yet.'
     );
     wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x['ID']) === b.dataset.edit));
+      b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
     });
     wrap.querySelectorAll('[data-del]').forEach(b => {
       b.onclick = () => remove(b.dataset.del);
@@ -53,34 +65,40 @@ Pages.items = (function () {
 
   function openForm(record) {
     const isEdit = !!record;
+    const menuVal = record ? record.menu : '';
+    const fields = [
+      { name: 'conference name', label: 'Conference name', value: record ? record['conference name'] : '' },
+      { name: 'date', label: 'Date', type: 'date', value: record ? record.date : '' },
+      { name: 'pax', label: 'Pax', type: 'number', value: record ? record.pax : '' },
+      { name: 'menu', label: 'Menu (item name)', value: menuVal },
+      { name: 'remarks', label: 'Remarks', type: 'textarea', value: record ? record.remarks : '' }
+    ];
     App.openModal({
-      title: isEdit ? 'Edit Item' : 'New Item',
-      fields: [
-        { name: 'Items Name', label: 'Items Name', value: record ? record['Items Name'] : '' }
-      ],
+      title: isEdit ? 'Edit Conference' : 'New Conference',
+      fields: fields,
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data['Items Name']) return reject(new Error('Name is required'));
+        if (!data['conference name']) return reject(new Error('Conference name is required'));
         if (isEdit) {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item updated'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Conference updated'); load(); resolve(); })
             .withFailureHandler(reject)
-            .updateItem(record['ID'], data);
+            .updateMenu(record.mid, data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item created'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Conference created'); load(); resolve(); })
             .withFailureHandler(reject)
-            .createItem(data);
+            .createMenu(data);
         }
       })
     });
   }
 
   function remove(id) {
-    if (!window.confirm('Delete this item?')) return;
+    if (!window.confirm('Delete this conference record?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Item deleted'); load(); })
+      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
-      .deleteItem(id);
+      .deleteMenu(id);
   }
 
   return { init, onShow, load };

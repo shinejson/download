@@ -1,22 +1,26 @@
-const MENU_SHEET = 'menu';
-const MENU_ID = 'mid';
+const USERS_SHEET = 'users';
+const USERS_ID = 'userid';
 
-function getMenuRecords() {
-  return readAll_(MENU_SHEET);
+function getUsers() {
+  // Don't return password to client for security
+  return readAll_(USERS_SHEET).map(u => {
+    const copy = Object.assign({}, u);
+    delete copy.password;
+    return copy;
+  });
 }
 
-function createMenu(data) {
-  if (!data || !data['conference name']) throw new Error('Conference name is required');
-  if (!data['mid']) data['mid'] = genId_('MEN');
-  if (data['date']) data['date'] = new Date(data['date']);
-  return createRow_(MENU_SHEET, data);
+function createUser(data) {
+  if (!data || !data['username']) throw new Error('username is required');
+  if (!data['userid']) data['userid'] = genId_('USR');
+  if (!data['status']) data['status'] = 'active';
+  return createRow_(USERS_SHEET, data);
 }
 
-function updateMenu(id, data) {
-  if (data['date']) data['date'] = new Date(data['date']);
-  return updateRow_(MENU_SHEET, MENU_ID, id, data);
+function updateUser(id, data) {
+  return updateRow_(USERS_SHEET, USERS_ID, id, data);
 }
 
-function deleteMenu(id) {
-  return deleteRow_(MENU_SHEET, MENU_ID, id);
+function deleteUser(id) {
+  return deleteRow_(USERS_SHEET, USERS_ID, id);
 }
