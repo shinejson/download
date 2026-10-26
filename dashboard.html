@@ -1,72 +1,25 @@
-<!-- SIDEBAR -->
-<aside id="sidebar">
-  <div class="sidebar-brand">
-    <div class="logo">📊</div>
-    <span>Conference Records</span>
-  </div>
-  <nav class="sidebar-nav">
-    <a href="#dashboard" data-page="dashboard" class="nav-link">
-      <span class="icon">🏠</span><span>Dashboard</span>
-    </a>
-    <a href="#categories" data-page="categories" class="nav-link">
-      <span class="icon">🗂️</span><span>Categories</span>
-    </a>
-    <a href="#items" data-page="items" class="nav-link">
-      <span class="icon">📦</span><span>Items</span>
-    </a>
-    <a href="#menu" data-page="menu" class="nav-link">
-      <span class="icon">📅</span><span>Menu</span>
-    </a>
-    <a href="#users" data-page="users" class="nav-link">
-      <span class="icon">👥</span><span>Users</span>
-    </a>
-    <a href="#settings" data-page="settings" class="nav-link">
-      <span class="icon">⚙️</span><span>Settings</span>
-    </a>
-  </nav>
-  <div class="sidebar-footer">© 2025 Conference Records</div>
-</aside>
-
-<!-- MAIN -->
-<div id="main">
-  <!-- TOP NAV -->
-  <header id="topnav">
-    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar">☰</button>
-    <div class="page-title" id="topnavTitle">Dashboard</div>
-    <div class="user-chip">
-      <div class="avatar">A</div>
-      <span>Admin</span>
-    </div>
-  </header>
-
-  <!-- CONTENT -->
-  <main id="content">
-    <div class="page-shell">
-      <div class="card">
-        <div class="stats-grid">
-          <div class="stat-box">
-            <div class="label">Categories</div>
-            <div class="value" data-stat="categories">0</div>
-          </div>
-          <div class="stat-box">
-            <div class="label">Items</div>
-            <div class="value" data-stat="items">0</div>
-          </div>
-          <div class="stat-box">
-            <div class="label">Menu</div>
-            <div class="value" data-stat="menu">0</div>
-          </div>
-          <div class="stat-box">
-            <div class="label">Users</div>
-            <div class="value" data-stat="users">0</div>
-          </div>
-        </div>
-
-        <div class="section-header">Upcoming Conferences</div>
-        <div id="upcomingList" class="list"></div>
+<div class="page-shell">
+  <div class="card">
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="label">Categories</div>
+        <div class="value" data-stat="categories">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Items</div>
+        <div class="value" data-stat="items">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Menu</div>
+        <div class="value" data-stat="menu">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Users</div>
+        <div class="value" data-stat="users">0</div>
       </div>
     </div>
-  </main>
-</div>
 
-<div id="toast"></div>
+    <div class="section-header">Upcoming Conferences</div>
+    <div id="upcomingList" class="list"></div>
+  </div>
+</div>
