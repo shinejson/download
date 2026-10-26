@@ -4,12 +4,28 @@ Pages.settings = (function () {
 
   function init() {
     document.getElementById('settingsAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('settingsSearch').addEventListener('input', (e) => render(e.target.value));
+    const search = document.getElementById('settingsSearch');
+    const filterType = document.getElementById('settingsFilterType');
+    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
+    if (filterType) {
+      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    }
   }
 
-  function onShow() { load(); }
+  function updateControls() {
+    const addBtn = document.getElementById('settingsAddBtn');
+    if (addBtn) {
+      addBtn.style.display = App.can('settings.edit') ? '' : 'none';
+    }
+  }
+
+  function onShow() {
+    updateControls();
+    load();
+  }
 
   function load() {
+    updateControls();
     const wrap = document.getElementById('settingsTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
@@ -20,33 +36,55 @@ Pages.settings = (function () {
       .getSettings();
   }
 
-  function render(filter = '') {
+  function render(filter = '', filterType = 'all') {
     const wrap = document.getElementById('settingsTableWrap');
-    const q = filter.toLowerCase();
-    const filtered = !q ? records : records.filter(r =>
-      Object.values(r).some(v => String(v).toLowerCase().includes(q))
-    );
+    const q = String(filter || '').trim().toLowerCase();
+    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
+      const key = String(r.key || '').toLowerCase();
+      const value = String(r.value || '').toLowerCase();
+
+      if (filterType === 'key') return key.includes(q);
+      if (filterType === 'value') return value.includes(q);
+      if (filterType === 'starts') return key.startsWith(q) || value.startsWith(q);
+      if (filterType === 'contains') return key.includes(q) || value.includes(q);
+      return key.includes(q) || value.includes(q);
+    });
+
+    const canEdit = App.can('settings.edit');
+    const headers = canEdit
+      ? ['Key', 'Value', 'Actions']
+      : ['Key', 'Value'];
+
     App.renderTable(
       wrap,
-      ['Key', 'Value', 'Actions'],
+      headers,
       filtered,
       r => `
         <tr>
           <td><code>${App.esc(r.key)}</code></td>
           <td>${App.esc(r.value)}</td>
-          <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}">Edit</button>
-          </td>
+          ${canEdit ? `
+            <td class="actions-cell">
+              <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}">Edit</button>
+            </td>
+          ` : ''}
         </tr>
       `,
       'No settings yet.'
     );
-    wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x.key) === b.dataset.edit));
-    });
+
+    if (canEdit) {
+      wrap.querySelectorAll('[data-edit]').forEach(b => {
+        b.onclick = () => openForm(records.find(x => String(x.key) === b.dataset.edit));
+      });
+    }
   }
 
   function openForm(record) {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot edit settings.', 'error');
+      return;
+    }
     const isEdit = !!record;
     App.openModal({
       title: isEdit ? 'Edit Setting' : 'New Setting',

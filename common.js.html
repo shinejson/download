@@ -7,6 +7,8 @@ const App = (function () {
   };
 
   let currentPage = 'dashboard';
+  let currentUser = null;
+  let userPermissions = [];
   const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
   function isStrongPassword(value) {
@@ -14,8 +16,22 @@ const App = (function () {
     return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])(?=.{8,128}$)/.test(value.trim());
   }
 
+  function can(permission) {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(permission);
+  }
+
+  function canView(page) {
+    if (!page || page === 'dashboard') return true;
+    return can(page + '.view');
+  }
+
   function refreshSessionTimer() {
     sessionStorage.setItem('conference_records.session', String(Date.now()));
+    try {
+      google.script.run.withFailureHandler(function () {}).touchSession();
+    } catch (e) {}
   }
 
   function startSessionTimer() {
@@ -36,32 +52,65 @@ const App = (function () {
     }, 30000);
   }
 
-  function setTopbarUser(name) {
+  function setTopbarUser(user) {
     const chip = document.querySelector('.user-chip');
     if (!chip) return;
-    const label = chip.querySelector('span');
-    const avatar = chip.querySelector('.avatar');
-    if (!label) return;
-    const display = name && String(name).trim() ? String(name).trim() : 'Admin';
-    label.textContent = display;
-    if (avatar) {
-      avatar.textContent = display.charAt(0).toUpperCase() || 'A';
+    const nameEl = document.getElementById('userChipName') || chip.querySelector('span');
+    const avatarEl = document.getElementById('userChipAvatar') || chip.querySelector('.avatar');
+    const roleEl = document.getElementById('userChipRole');
+
+    const displayName = (user && (user.fullName || user.username)) ? String(user.fullName || user.username).trim() : 'User';
+    const role = (user && user.role) ? String(user.role).toLowerCase() : 'viewer';
+
+    if (nameEl) nameEl.textContent = displayName;
+    if (avatarEl) avatarEl.textContent = displayName.charAt(0).toUpperCase() || 'U';
+
+    if (roleEl) {
+      roleEl.textContent = role.toUpperCase();
+      roleEl.className = 'role-badge role-' + role;
+    } else {
+      const newRoleEl = document.createElement('span');
+      newRoleEl.id = 'userChipRole';
+      newRoleEl.textContent = role.toUpperCase();
+      newRoleEl.className = 'role-badge role-' + role;
+      chip.appendChild(newRoleEl);
+    }
+  }
+
+  function applyRolePermissions() {
+    // 1. Hide/show sidebar links based on page view permissions
+    document.querySelectorAll('.sidebar-nav a[data-page]').forEach(link => {
+      const page = link.dataset.page;
+      const allowed = canView(page);
+      link.style.display = allowed ? '' : 'none';
+    });
+
+    // 2. If current page is unauthorized, route back to dashboard
+    if (!canView(currentPage)) {
+      toast('Access Denied: You do not have permission to view the ' + (TITLES[currentPage] || currentPage) + ' page.', 'error');
+      navigate('dashboard', true);
+    } else {
+      // Re-trigger onShow to let active page update its buttons
+      if (Pages[currentPage] && Pages[currentPage].onShow) {
+        try { Pages[currentPage].onShow(); } catch (e) {}
+      }
     }
   }
 
   function loadCurrentUser() {
     google.script.run
       .withSuccessHandler(function (user) {
-        if (user && user.fullName) {
-          setTopbarUser(user.fullName);
-        } else if (user && user.username) {
-          setTopbarUser(user.username);
-        } else {
-          setTopbarUser('Admin');
-        }
+        currentUser = user || { username: '', fullName: '', role: 'viewer', permissions: [] };
+        userPermissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+        setTopbarUser(currentUser);
+        applyRolePermissions();
       })
-      .withFailureHandler(function () {
-        setTopbarUser('Admin');
+      .withFailureHandler(function (err) {
+        console.error('Failed to load user profile:', err);
+        currentUser = { username: '', fullName: 'User', role: 'viewer', permissions: [] };
+        userPermissions = [];
+        setTopbarUser(currentUser);
+        applyRolePermissions();
       })
       .getCurrentUserProfile();
   }
@@ -91,17 +140,144 @@ const App = (function () {
     });
   }
 
+  function loadNotifications() {
+    const panel = document.getElementById('notificationPanel');
+    const list = panel && panel.querySelector('.notification-list');
+    const badge = document.querySelector('.notification-badge');
+    if (!panel || !list) return;
+
+    google.script.run
+      .withSuccessHandler(function (items) {
+        const notifications = Array.isArray(items) && items.length ? items : [{
+          id: 'empty',
+          title: 'No updates',
+          message: 'You are all caught up.',
+          timeLabel: 'Just now',
+          unread: false
+        }];
+
+        list.innerHTML = notifications.map(item => `
+          <div class="notification-item ${item.unread ? 'unread' : ''}">
+            <div class="notification-dot"></div>
+            <div>
+              <strong>${App.esc(item.title || 'Update')}</strong>
+              <div>${App.esc(item.message || '')}</div>
+              <small>${App.esc(item.timeLabel || 'Just now')}</small>
+            </div>
+          </div>
+        `).join('');
+
+        const unreadCount = notifications.filter(item => item.unread).length;
+        if (badge) {
+          badge.textContent = String(unreadCount);
+          badge.style.display = unreadCount > 0 ? 'inline-flex' : 'none';
+        }
+      })
+      .withFailureHandler(function () {
+        list.innerHTML = `
+          <div class="notification-item">
+            <div class="notification-dot"></div>
+            <div>
+              <strong>System alert</strong>
+              <div>Unable to load notifications right now.</div>
+              <small>Just now</small>
+            </div>
+          </div>
+        `;
+        if (badge) {
+          badge.textContent = '0';
+          badge.style.display = 'none';
+        }
+      })
+      .getNotifications();
+  }
+
+  function refreshNotifications() {
+    const panel = document.getElementById('notificationPanel');
+    const toggle = document.getElementById('notificationToggle');
+    if (panel && !panel.classList.contains('hidden')) {
+      loadNotifications();
+      return;
+    }
+    if (toggle) {
+      const badge = toggle.querySelector('.notification-badge');
+      if (badge) {
+        badge.style.display = 'inline-flex';
+      }
+    }
+    loadNotifications();
+  }
+
   function init(initialPage) {
     window.__appUrl__ = document.body.getAttribute('data-app-url') || (window.location.origin + window.location.pathname);
 
+    const sidebar = document.getElementById('sidebar');
+    const main = document.getElementById('main');
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const notificationToggle = document.getElementById('notificationToggle');
+    const notificationPanel = document.getElementById('notificationPanel');
+    const markNotificationsRead = document.getElementById('markNotificationsRead');
+
+    function setSidebarCollapsed(collapsed) {
+      const isCollapsed = !!collapsed;
+      if (sidebar) sidebar.classList.toggle('hidden', isCollapsed);
+      if (main) main.classList.toggle('full', isCollapsed);
+      if (sidebarToggle) {
+        sidebarToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        sidebarToggle.title = isCollapsed ? 'Restore sidebar' : 'Collapse sidebar';
+      }
+    }
+
     if (sidebarToggle) {
       sidebarToggle.addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('hidden');
-        document.getElementById('main').classList.toggle('full');
-        document.getElementById('sidebar').classList.toggle('mobile-open');
+        const collapsed = sidebar && sidebar.classList.contains('hidden');
+        setSidebarCollapsed(!collapsed);
       });
     }
+
+    if (notificationToggle) {
+      notificationToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!notificationPanel) return;
+        const hidden = notificationPanel.classList.contains('hidden');
+        notificationPanel.classList.toggle('hidden', !hidden);
+        notificationToggle.setAttribute('aria-expanded', String(hidden));
+        if (hidden) loadNotifications();
+      });
+    }
+
+    if (notificationPanel) {
+      document.addEventListener('click', (e) => {
+        if (!notificationPanel.contains(e.target) && !notificationToggle.contains(e.target)) {
+          notificationPanel.classList.add('hidden');
+          if (notificationToggle) notificationToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    if (markNotificationsRead) {
+      markNotificationsRead.addEventListener('click', () => {
+        const badge = document.querySelector('.notification-badge');
+        const items = document.querySelectorAll('.notification-item.unread');
+        items.forEach(item => item.classList.remove('unread'));
+        if (badge) {
+          badge.textContent = '0';
+          badge.style.display = 'none';
+        }
+        if (notificationPanel) notificationPanel.classList.add('hidden');
+      });
+    }
+
+    const notificationIntervalMs = 45 * 1000;
+    if (window.__notificationTimer__) clearInterval(window.__notificationTimer__);
+    window.__notificationTimer__ = window.setInterval(function () {
+      const panelOpen = notificationPanel && !notificationPanel.classList.contains('hidden');
+      if (panelOpen || document.visibilityState !== 'hidden') {
+        loadNotifications();
+      }
+    }, notificationIntervalMs);
+
+    loadNotifications();
 
     document.querySelectorAll('[data-action]').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -150,6 +326,16 @@ const App = (function () {
 
   function navigate(page, setHash = true) {
     if (!ROUTES.includes(page)) page = 'dashboard';
+
+    // Route guard: check page permission if user profile is loaded
+    if (currentUser && !canView(page)) {
+      toast('Access Denied: You do not have permission to access the ' + (TITLES[page] || page) + ' page.', 'error');
+      if (currentPage !== 'dashboard') {
+        navigate('dashboard', true);
+      }
+      return;
+    }
+
     currentPage = page;
 
     document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
@@ -352,6 +538,9 @@ const App = (function () {
     init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable,
     isStrongPassword,
     logout, openChangePasswordModal, setTopbarUser, loadCurrentUser,
+    can, canView, applyRolePermissions,
+    get currentUser() { return currentUser; },
+    get userPermissions() { return userPermissions; },
     get currentPage() { return currentPage; }
   };
 })();

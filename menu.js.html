@@ -5,13 +5,34 @@ Pages.menu = (function () {
 
   function init() {
     document.getElementById('menuAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('menuSearch').addEventListener('input', (e) => render(e.target.value));
-    loadItems();
+    const search = document.getElementById('menuSearch');
+    const filterType = document.getElementById('menuFilterType');
+    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
+    if (filterType) {
+      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    }
+    if (App.can('items.view')) {
+      loadItems();
+    }
   }
 
-  function onShow() { load(); }
+  function updateControls() {
+    const addBtn = document.getElementById('menuAddBtn');
+    if (addBtn) {
+      addBtn.style.display = App.can('menu.create') ? '' : 'none';
+    }
+  }
+
+  function onShow() {
+    updateControls();
+    if (App.can('items.view') && itemOptions.length === 0) {
+      loadItems();
+    }
+    load();
+  }
 
   function loadItems() {
+    if (!App.can('items.view')) return;
     google.script.run
       .withSuccessHandler(data => { itemOptions = data || []; })
       .withFailureHandler(() => { itemOptions = []; })
@@ -19,6 +40,7 @@ Pages.menu = (function () {
   }
 
   function load() {
+    updateControls();
     const wrap = document.getElementById('menuTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
@@ -29,15 +51,45 @@ Pages.menu = (function () {
       .getMenuRecords();
   }
 
-  function render(filter = '') {
+  function render(filter = '', filterType = 'all') {
     const wrap = document.getElementById('menuTableWrap');
-    const q = filter.toLowerCase();
-    const filtered = !q ? records : records.filter(r =>
-      Object.values(r).some(v => String(v).toLowerCase().includes(q))
-    );
+    const q = String(filter || '').trim().toLowerCase();
+    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
+      const haystack = [
+        r['conference name'],
+        r.date,
+        r.pax,
+        r.menu,
+        r.remarks,
+        r.mid
+      ].join(' ').toLowerCase();
+
+      if (filterType === 'future') {
+        return new Date(r.date) >= new Date() && haystack.includes(q);
+      }
+      if (filterType === 'past') {
+        return new Date(r.date) < new Date() && haystack.includes(q);
+      }
+      if (filterType === 'starts') {
+        return haystack.startsWith(q);
+      }
+      if (filterType === 'contains') {
+        return haystack.includes(q);
+      }
+      return haystack.includes(q);
+    });
+
+    const canEdit = App.can('menu.edit');
+    const canDelete = App.can('menu.delete');
+    const hasActions = canEdit || canDelete;
+
+    const headers = hasActions
+      ? ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions']
+      : ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks'];
+
     App.renderTable(
       wrap,
-      ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions'],
+      headers,
       filtered,
       r => `
         <tr>
@@ -47,24 +99,41 @@ Pages.menu = (function () {
           <td>${App.esc(r.pax)}</td>
           <td>${App.esc(r.menu)}</td>
           <td>${App.esc(r.remarks)}</td>
-          <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>
-          </td>
+          ${hasActions ? `
+            <td class="actions-cell">
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>` : ''}
+            </td>
+          ` : ''}
         </tr>
       `,
       'No conferences yet.'
     );
-    wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
-    });
-    wrap.querySelectorAll('[data-del]').forEach(b => {
-      b.onclick = () => remove(b.dataset.del);
-    });
+
+    if (canEdit) {
+      wrap.querySelectorAll('[data-edit]').forEach(b => {
+        b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
+      });
+    }
+
+    if (canDelete) {
+      wrap.querySelectorAll('[data-del]').forEach(b => {
+        b.onclick = () => remove(b.dataset.del);
+      });
+    }
   }
 
   function openForm(record) {
     const isEdit = !!record;
+    if (isEdit && !App.can('menu.edit')) {
+      App.toast('Permission denied: You cannot edit conference records.', 'error');
+      return;
+    }
+    if (!isEdit && !App.can('menu.create')) {
+      App.toast('Permission denied: You cannot create conference records.', 'error');
+      return;
+    }
+
     const menuVal = record ? record.menu : '';
     const fields = [
       { name: 'conference name', label: 'Conference name', value: record ? record['conference name'] : '' },
@@ -73,6 +142,7 @@ Pages.menu = (function () {
       { name: 'menu', label: 'Menu (item name)', value: menuVal },
       { name: 'remarks', label: 'Remarks', type: 'textarea', value: record ? record.remarks : '' }
     ];
+
     App.openModal({
       title: isEdit ? 'Edit Conference' : 'New Conference',
       fields: fields,
@@ -80,12 +150,12 @@ Pages.menu = (function () {
         if (!data['conference name']) return reject(new Error('Conference name is required'));
         if (isEdit) {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Conference updated'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Conference updated'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .updateMenu(record.mid, data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Conference created'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Conference created'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .createMenu(data);
         }
@@ -96,7 +166,7 @@ Pages.menu = (function () {
   function remove(id) {
     if (!window.confirm('Delete this conference record?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); })
+      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); refreshNotifications(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteMenu(id);
   }

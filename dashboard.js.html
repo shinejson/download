@@ -52,18 +52,40 @@ Pages.dashboard = (function () {
     var container = els.upcomingList;
     if (!container) return;
     if (!upcoming || upcoming.length === 0) {
-      renderEmptyList(container, 'No upcoming conferences.');
+      renderEmptyList(container, 'No upcoming conferences scheduled.');
       return;
     }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     container.innerHTML = upcoming.map(function (u) {
-      return '<div class="list-item">' +
-        '<div class="list-item-content">' +
-        '<div class="list-item-title">' + App.esc(u.conference || 'Untitled') + '</div>' +
-        '<div class="list-item-meta">' +
-        App.esc(u.date || '') + ' · ' + App.esc(u.pax != null ? u.pax : 0) + ' pax' +
+      var dateStr = u.date || '';
+      var monthStr = '—';
+      var dayStr = '—';
+      if (dateStr) {
+        try {
+          var parts = String(dateStr).split('-');
+          if (parts.length === 3) {
+            var mIdx = parseInt(parts[1], 10) - 1;
+            monthStr = months[mIdx] || parts[1];
+            dayStr = parseInt(parts[2], 10) || parts[2];
+          }
+        } catch (e) {}
+      }
+
+      return '<div class="conf-item">' +
+        '<div class="conf-date-box">' +
+          '<span class="conf-date-month">' + App.esc(monthStr) + '</span>' +
+          '<span class="conf-date-day">' + App.esc(dayStr) + '</span>' +
         '</div>' +
+        '<div class="conf-details">' +
+          '<div class="conf-title" title="' + App.esc(u.conference || '') + '">' + App.esc(u.conference || 'Untitled Event') + '</div>' +
+          '<div class="conf-meta">' +
+            '<span class="conf-meta-item">📅 ' + App.esc(u.date || 'TBD') + '</span>' +
+            '<span class="conf-meta-sep">·</span>' +
+            '<span class="conf-pax-tag">👥 ' + App.esc(u.pax != null ? u.pax : 0) + ' pax</span>' +
+          '</div>' +
         '</div>' +
-        '</div>';
+        '<a href="#menu" class="conf-action-btn" title="View details in Menu module">&rarr;</a>' +
+      '</div>';
     }).join('');
   }
 
@@ -296,9 +318,30 @@ Pages.dashboard = (function () {
     setStat('categories', stats.categories);
     setStat('items', stats.items);
     setStat('menu', stats.menu);
-    setStat('users', stats.users);
+
+    var userCard = els.users ? els.users.closest('.stat-card') : null;
+    if (stats.users === null || !App.can('users.view')) {
+      if (userCard) userCard.style.display = 'none';
+    } else {
+      if (userCard) userCard.style.display = '';
+      setStat('users', stats.users);
+    }
+
     setStat('upcoming', stats.upcoming ? stats.upcoming.length : 0);
     renderUpcomingList(stats.upcoming || []);
+
+    var timeEl = document.getElementById('dashboardLastUpdated');
+    if (timeEl) {
+      var d = new Date();
+      timeEl.textContent = 'Refreshed ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  function updateQuickActions() {
+    var quickAdd = document.getElementById('quickAddConference');
+    if (quickAdd) {
+      quickAdd.style.display = App.can('menu.create') ? 'inline-flex' : 'none';
+    }
   }
 
   function init() {
@@ -313,11 +356,34 @@ Pages.dashboard = (function () {
       });
     }
 
+    // Keyboard shortcut 'r' to refresh when dashboard is active
+    window.addEventListener('keydown', function (e) {
+      if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+          if (App.currentPage === 'dashboard') {
+            e.preventDefault();
+            if (els.refreshBtn) {
+              els.refreshBtn.classList.add('btn-loading');
+              setTimeout(function () { els.refreshBtn.classList.remove('btn-loading'); }, 600);
+            }
+            load();
+          }
+        }
+      }
+    });
+
     isMounted = true;
+    updateQuickActions();
     load();
   }
 
   function onShow() {
+    var userCard = els.users ? els.users.closest('.stat-card') : null;
+    if (userCard) {
+      userCard.style.display = App.can('users.view') ? '' : 'none';
+    }
+    updateQuickActions();
     load();
     Object.keys(charts).forEach(function (name) {
       var c = charts[name];

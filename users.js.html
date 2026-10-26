@@ -4,12 +4,28 @@ Pages.users = (function () {
 
   function init() {
     document.getElementById('usersAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('usersSearch').addEventListener('input', (e) => render(e.target.value));
+    const search = document.getElementById('usersSearch');
+    const filterType = document.getElementById('usersFilterType');
+    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
+    if (filterType) {
+      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    }
   }
 
-  function onShow() { load(); }
+  function updateControls() {
+    const addBtn = document.getElementById('usersAddBtn');
+    if (addBtn) {
+      addBtn.style.display = App.can('users.create') ? '' : 'none';
+    }
+  }
+
+  function onShow() {
+    updateControls();
+    load();
+  }
 
   function load() {
+    updateControls();
     const wrap = document.getElementById('usersTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
@@ -20,40 +36,88 @@ Pages.users = (function () {
       .getUsers();
   }
 
-  function render(filter = '') {
+  function render(filter = '', filterType = 'all') {
     const wrap = document.getElementById('usersTableWrap');
-    const q = filter.toLowerCase();
-    const filtered = !q ? records : records.filter(r =>
-      Object.values(r).some(v => String(v).toLowerCase().includes(q))
-    );
+    const q = String(filter || '').trim().toLowerCase();
+    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
+      const haystack = [
+        r.firstname,
+        r.lastname,
+        r.email,
+        r.username,
+        r.role,
+        r.department,
+        r.status,
+        r.userid
+      ].join(' ').toLowerCase();
+
+      if (filterType === 'active') return String(r.status || '').toLowerCase() === 'active' && haystack.includes(q);
+      if (filterType === 'inactive') return String(r.status || '').toLowerCase() === 'inactive' && haystack.includes(q);
+      if (filterType === 'starts') return haystack.startsWith(q);
+      if (filterType === 'contains') return haystack.includes(q);
+      return haystack.includes(q);
+    });
+
+    const canEdit = App.can('users.edit');
+    const canDelete = App.can('users.delete');
+    const hasActions = canEdit || canDelete;
+    const currentUsername = App.currentUser ? String(App.currentUser.username).toLowerCase() : '';
+
+    const headers = hasActions
+      ? ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions']
+      : ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status'];
+
     App.renderTable(
       wrap,
-      ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions'],
+      headers,
       filtered,
-      r => `
-        <tr>
-          <td><code>${App.esc(r.userid)}</code></td>
-          <td>${App.esc(r.firstname)} ${App.esc(r.lastname)}</td>
-          <td>${App.esc(r.contact)}</td>
-          <td>${App.esc(r.email)}</td>
-          <td>${App.esc(r.username)}</td>
-          <td>${App.esc(r.role)}</td>
-          <td>${App.esc(r.department)}</td>
-          <td>${statusBadge(r.status)}</td>
-          <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}">Delete</button>
-          </td>
-        </tr>
-      `,
+      r => {
+        const isSelf = String(r.username || '').toLowerCase() === currentUsername;
+        return `
+          <tr>
+            <td><code>${App.esc(r.userid)}</code></td>
+            <td>${App.esc(r.firstname)} ${App.esc(r.lastname)}</td>
+            <td>${App.esc(r.contact)}</td>
+            <td>${App.esc(r.email)}</td>
+            <td>${App.esc(r.username)}</td>
+            <td>${roleBadge(r.role)}</td>
+            <td>${App.esc(r.department)}</td>
+            <td>${statusBadge(r.status)}</td>
+            ${hasActions ? `
+              <td class="actions-cell">
+                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}">Edit</button>` : ''}
+                ${(canDelete && !isSelf) ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}">Delete</button>` : ''}
+                ${(canDelete && isSelf) ? `<button class="btn btn-secondary btn-sm" disabled title="You cannot delete your own account" style="opacity:0.5;cursor:not-allowed;">Self</button>` : ''}
+              </td>
+            ` : ''}
+          </tr>
+        `;
+      },
       'No users yet.'
     );
-    wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x.userid) === b.dataset.edit));
-    });
-    wrap.querySelectorAll('[data-del]').forEach(b => {
-      b.onclick = () => remove(b.dataset.del);
-    });
+
+    if (canEdit) {
+      wrap.querySelectorAll('[data-edit]').forEach(b => {
+        b.onclick = () => openForm(records.find(x => String(x.userid) === b.dataset.edit));
+      });
+    }
+
+    if (canDelete) {
+      wrap.querySelectorAll('[data-del]').forEach(b => {
+        b.onclick = () => remove(b.dataset.del);
+      });
+    }
+  }
+
+  function roleBadge(r) {
+    const role = String(r || 'viewer').toLowerCase();
+    const labels = {
+      admin: 'Admin',
+      manager: 'Manager',
+      staff: 'Staff',
+      viewer: 'Viewer'
+    };
+    return `<span class="role-badge role-${App.esc(role)}">${App.esc(labels[role] || role)}</span>`;
   }
 
   function statusBadge(s) {
@@ -64,6 +128,15 @@ Pages.users = (function () {
 
   function openForm(record) {
     const isEdit = !!record;
+    if (isEdit && !App.can('users.edit')) {
+      App.toast('Permission denied: You cannot edit users.', 'error');
+      return;
+    }
+    if (!isEdit && !App.can('users.create')) {
+      App.toast('Permission denied: You cannot create users.', 'error');
+      return;
+    }
+
     App.openModal({
       title: isEdit ? 'Edit User' : 'New User',
       fields: [
@@ -73,22 +146,38 @@ Pages.users = (function () {
         { name: 'email', label: 'Email', type: 'email', value: record ? record.email : '' },
         { name: 'username', label: 'Username', value: record ? record.username : '' },
         { name: 'password', label: isEdit ? 'Password (leave blank to keep current)' : 'Password', type: 'password', value: '' },
-        { name: 'role', label: 'Role', value: record ? record.role : '' },
+        {
+          name: 'role',
+          label: 'Role',
+          type: 'select',
+          value: record ? String(record.role || 'staff').toLowerCase() : 'staff',
+          options: [
+            { value: 'admin', label: 'Admin (Full Access)' },
+            { value: 'manager', label: 'Manager (Manage Records)' },
+            { value: 'staff', label: 'Staff (Coordinator)' },
+            { value: 'viewer', label: 'Viewer (Read-Only)' }
+          ]
+        },
         { name: 'department', label: 'Department', value: record ? record.department : '' },
-        { name: 'status', label: 'Status', type: 'select', value: record ? record.status : 'active',
-          options: [{value:'active', label:'Active'}, {value:'inactive', label:'Inactive'}] }
+        {
+          name: 'status',
+          label: 'Status',
+          type: 'select',
+          value: record ? record.status : 'active',
+          options: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]
+        }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
         if (!data.username) return reject(new Error('Username is required'));
         if (isEdit) {
           if (!data.password) delete data.password;
           google.script.run
-            .withSuccessHandler(() => { App.toast('User updated'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('User updated'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .updateUser(record.userid, data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('User created'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('User created'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .createUser(data);
         }
@@ -97,9 +186,13 @@ Pages.users = (function () {
   }
 
   function remove(id) {
+    if (!App.can('users.delete')) {
+      App.toast('Permission denied: You cannot delete users.', 'error');
+      return;
+    }
     if (!window.confirm('Delete this user?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('User deleted'); load(); })
+      .withSuccessHandler(() => { App.toast('User deleted'); load(); refreshNotifications(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteUser(id);
   }

@@ -4,12 +4,28 @@ Pages.items = (function () {
 
   function init() {
     document.getElementById('itemsAddBtn').addEventListener('click', () => openForm());
-    document.getElementById('itemsSearch').addEventListener('input', (e) => render(e.target.value));
+    const search = document.getElementById('itemsSearch');
+    const filterType = document.getElementById('itemsFilterType');
+    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
+    if (filterType) {
+      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    }
   }
 
-  function onShow() { load(); }
+  function updateControls() {
+    const addBtn = document.getElementById('itemsAddBtn');
+    if (addBtn) {
+      addBtn.style.display = App.can('items.create') ? '' : 'none';
+    }
+  }
+
+  function onShow() {
+    updateControls();
+    load();
+  }
 
   function load() {
+    updateControls();
     const wrap = document.getElementById('itemsTableWrap');
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
     google.script.run
@@ -20,39 +36,77 @@ Pages.items = (function () {
       .getItems();
   }
 
-  function render(filter = '') {
+  function render(filter = '', filterType = 'all') {
+    updateControls();
     const wrap = document.getElementById('itemsTableWrap');
-    const q = filter.toLowerCase();
-    const filtered = !q ? records : records.filter(r =>
-      String(r['ID']).toLowerCase().includes(q) ||
-      String(r['Items Name']).toLowerCase().includes(q)
-    );
+    const q = String(filter || '').trim().toLowerCase();
+    const filtered = !q ? records : records.filter(r => {
+      const value = String(r['Items Name'] || '').toLowerCase();
+      switch (filterType) {
+        case 'starts':
+          return value.startsWith(q);
+        case 'contains':
+          return value.includes(q);
+        case 'short':
+          return value.length > 0 && value.length <= 8;
+        case 'long':
+          return value.length > 12;
+        default:
+          return value.includes(q) || String(r['ID'] || '').toLowerCase().includes(q);
+      }
+    });
+
+    const canEdit = App.can('items.edit');
+    const canDelete = App.can('items.delete');
+    const hasActions = canEdit || canDelete;
+
+    const headers = hasActions
+      ? ['ID', 'Items Name', 'Actions']
+      : ['ID', 'Items Name'];
+
     App.renderTable(
       wrap,
-      ['ID', 'Items Name', 'Actions'],
+      headers,
       filtered,
       r => `
         <tr>
           <td><code>${App.esc(r['ID'])}</code></td>
           <td>${App.esc(r['Items Name'])}</td>
-          <td class="actions-cell">
-            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}">Edit</button>
-            <button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}">Delete</button>
-          </td>
+          ${hasActions ? `
+            <td class="actions-cell">
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}">Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}">Delete</button>` : ''}
+            </td>
+          ` : ''}
         </tr>
       `,
       'No items yet.'
     );
-    wrap.querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = () => openForm(records.find(x => String(x['ID']) === b.dataset.edit));
-    });
-    wrap.querySelectorAll('[data-del]').forEach(b => {
-      b.onclick = () => remove(b.dataset.del);
-    });
+
+    if (canEdit) {
+      wrap.querySelectorAll('[data-edit]').forEach(b => {
+        b.onclick = () => openForm(records.find(x => String(x['ID']) === b.dataset.edit));
+      });
+    }
+
+    if (canDelete) {
+      wrap.querySelectorAll('[data-del]').forEach(b => {
+        b.onclick = () => remove(b.dataset.del);
+      });
+    }
   }
 
   function openForm(record) {
     const isEdit = !!record;
+    if (isEdit && !App.can('items.edit')) {
+      App.toast('Permission denied: You cannot edit items.', 'error');
+      return;
+    }
+    if (!isEdit && !App.can('items.create')) {
+      App.toast('Permission denied: You cannot create items.', 'error');
+      return;
+    }
+
     App.openModal({
       title: isEdit ? 'Edit Item' : 'New Item',
       fields: [
@@ -62,12 +116,12 @@ Pages.items = (function () {
         if (!data['Items Name']) return reject(new Error('Name is required'));
         if (isEdit) {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item updated'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Item updated'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .updateItem(record['ID'], data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item created'); load(); resolve(); })
+            .withSuccessHandler(() => { App.toast('Item created'); load(); refreshNotifications(); })
             .withFailureHandler(reject)
             .createItem(data);
         }
@@ -76,9 +130,13 @@ Pages.items = (function () {
   }
 
   function remove(id) {
+    if (!App.can('items.delete')) {
+      App.toast('Permission denied: You cannot delete items.', 'error');
+      return;
+    }
     if (!window.confirm('Delete this item?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Item deleted'); load(); })
+      .withSuccessHandler(() => { App.toast('Item deleted'); load(); refreshNotifications(); })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteItem(id);
   }

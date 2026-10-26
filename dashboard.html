@@ -1,127 +1,200 @@
-<!-- DASHBOARD PAGE -->
-<div class="dashboard">
-  <!-- Page Header -->
+<!-- DASHBOARD PAGE (REBUILT FOR SENIOR DEV ARCHITECTURE) -->
+<section class="dashboard" aria-label="Executive Operations Dashboard">
+  <!-- Executive Header & Control Toolbar -->
   <header class="dashboard-header">
-    <div class="dashboard-header-content">
-      <h1 class="dashboard-title">Dashboard</h1>
-      <p class="dashboard-subtitle">Overview of your conference records</p>
+    <div class="dashboard-headline">
+      <div class="dashboard-title-row">
+        <h1 class="dashboard-title">Operational Dashboard</h1>
+        <span class="system-status-pill" title="Real-time connection to Google Sheet database active">
+          <span class="status-indicator-dot"></span> Live Sync
+        </span>
+      </div>
+      <p class="dashboard-subtitle">
+        Real-time operational metrics, conference volume trajectories, and inventory catalog breakdown.
+        <span class="last-refreshed-badge" id="dashboardLastUpdated">Auto-synced</span>
+      </p>
     </div>
-    <div class="dashboard-actions">
-      <button class="btn btn-outline btn-sm" id="dashboardRefresh" title="Refresh data">
+
+    <div class="dashboard-actions" role="toolbar" aria-label="Dashboard controls">
+      <button class="btn btn-outline btn-sm" id="dashboardRefresh" title="Refresh operational data (Shortcut: R)" aria-label="Refresh dashboard data">
         <span class="btn-icon">↻</span>
-        <span class="btn-label">Refresh</span>
+        <span class="btn-label">Refresh Data</span>
       </button>
+      <a href="#menu" class="btn btn-primary btn-sm quick-action-btn" id="quickAddConference" title="Schedule a new conference">
+        <span class="btn-icon">+</span>
+        <span class="btn-label">Schedule Event</span>
+      </a>
     </div>
   </header>
 
-  <!-- Stat Cards -->
-  <div class="stat-grid">
-    <div class="stat-card stat-card-primary">
+  <!-- Executive KPI Metrics Grid -->
+  <div class="stat-grid" role="region" aria-label="Key Performance Indicators">
+    <!-- Categories Card -->
+    <article class="stat-card stat-card-primary" aria-labelledby="stat-cat-label">
       <div class="stat-card-inner">
-        <div class="stat-meta">
-          <span class="stat-label">Total Categories</span>
-          <span class="stat-badge" data-stat-badge="categories">0</span>
+        <div class="stat-header">
+          <div class="stat-icon-wrap stat-icon-primary">🗂️</div>
+          <div class="stat-meta">
+            <span class="stat-label" id="stat-cat-label">Total Categories</span>
+            <span class="stat-badge" data-stat-badge="categories" title="Active Categories Count">0</span>
+          </div>
         </div>
-        <div class="stat-value" data-stat="categories">0</div>
-        <div class="stat-delta stat-delta-neutral">Records</div>
+        <div class="stat-value-wrap">
+          <div class="stat-value" data-stat="categories" aria-live="polite">0</div>
+        </div>
+        <div class="stat-footer">
+          <span class="stat-delta stat-delta-neutral">Inventory segments</span>
+          <a href="#categories" class="stat-link" title="Jump to Categories manager">Manage &rarr;</a>
+        </div>
       </div>
-    </div>
-    <div class="stat-card stat-card-info">
+    </article>
+
+    <!-- Items Card -->
+    <article class="stat-card stat-card-info" aria-labelledby="stat-items-label">
       <div class="stat-card-inner">
-        <div class="stat-meta">
-          <span class="stat-label">Total Items</span>
-          <span class="stat-badge" data-stat-badge="items">0</span>
+        <div class="stat-header">
+          <div class="stat-icon-wrap stat-icon-info">📦</div>
+          <div class="stat-meta">
+            <span class="stat-label" id="stat-items-label">Catalogued Items</span>
+            <span class="stat-badge" data-stat-badge="items" title="Active Items Count">0</span>
+          </div>
         </div>
-        <div class="stat-value" data-stat="items">0</div>
-        <div class="stat-delta stat-delta-neutral">Catalogued</div>
+        <div class="stat-value-wrap">
+          <div class="stat-value" data-stat="items" aria-live="polite">0</div>
+        </div>
+        <div class="stat-footer">
+          <span class="stat-delta stat-delta-neutral">Catalogued items</span>
+          <a href="#items" class="stat-link" title="Jump to Items manager">View all &rarr;</a>
+        </div>
       </div>
-    </div>
-    <div class="stat-card stat-card-success">
+    </article>
+
+    <!-- Upcoming Conferences Card -->
+    <article class="stat-card stat-card-success" aria-labelledby="stat-conf-label">
       <div class="stat-card-inner">
-        <div class="stat-meta">
-          <span class="stat-label">Upcoming Conferences</span>
-          <span class="stat-badge" data-stat-badge="upcoming">0</span>
+        <div class="stat-header">
+          <div class="stat-icon-wrap stat-icon-success">📅</div>
+          <div class="stat-meta">
+            <span class="stat-label" id="stat-conf-label">Upcoming Events</span>
+            <span class="stat-badge" data-stat-badge="upcoming" title="Upcoming Scheduled Events">0</span>
+          </div>
         </div>
-        <div class="stat-value" data-stat="upcoming">0</div>
-        <div class="stat-delta stat-delta-neutral">Scheduled</div>
+        <div class="stat-value-wrap">
+          <div class="stat-value" data-stat="upcoming" aria-live="polite">0</div>
+        </div>
+        <div class="stat-footer">
+          <span class="stat-delta stat-delta-neutral">Scheduled & confirmed</span>
+          <a href="#menu" class="stat-link" title="Jump to Conference Menu">Schedule &rarr;</a>
+        </div>
       </div>
-    </div>
-    <div class="stat-card stat-card-warning">
+    </article>
+
+    <!-- Users Card (Protected by users.view RBAC) -->
+    <article class="stat-card stat-card-warning" aria-labelledby="stat-users-label">
       <div class="stat-card-inner">
-        <div class="stat-meta">
-          <span class="stat-label">Total Users</span>
-          <span class="stat-badge" data-stat-badge="users">0</span>
+        <div class="stat-header">
+          <div class="stat-icon-wrap stat-icon-warning">👥</div>
+          <div class="stat-meta">
+            <span class="stat-label" id="stat-users-label">System Accounts</span>
+            <span class="stat-badge" data-stat-badge="users" title="Registered User Accounts">0</span>
+          </div>
         </div>
-        <div class="stat-value" data-stat="users">0</div>
-        <div class="stat-delta stat-delta-neutral">Registered</div>
+        <div class="stat-value-wrap">
+          <div class="stat-value" data-stat="users" aria-live="polite">0</div>
+        </div>
+        <div class="stat-footer">
+          <span class="stat-delta stat-delta-neutral">Authorized personnel</span>
+          <a href="#users" class="stat-link" title="Jump to User Administration">Administer &rarr;</a>
+        </div>
       </div>
-    </div>
+    </article>
   </div>
 
-  <!-- Charts Grid -->
-  <div class="dashboard-grid">
-    <!-- Line Chart: Conference Trends -->
-    <div class="card chart-card">
-      <div class="card-header">
+  <!-- Operational Visualizations & Schedule Grid -->
+  <div class="dashboard-grid" role="region" aria-label="Operational Visualizations">
+    <!-- Line Chart: Conference Trends Over Time -->
+    <section class="card chart-card" aria-labelledby="trends-card-title">
+      <header class="card-header">
         <div class="card-title-wrap">
-          <span class="card-icon">📈</span>
-          <span class="card-title">Conference Trends</span>
+          <span class="card-icon" aria-hidden="true">📈</span>
+          <h2 class="card-title" id="trends-card-title">Conference Volume Trajectory</h2>
         </div>
-        <span class="card-subtitle">Last 6 months</span>
-      </div>
+        <span class="card-subtitle">Trailing 6-Month Trend</span>
+      </header>
       <div class="card-body chart-wrapper">
-        <div class="chart-loading" id="trendsChartLoading">
-          <div class="spinner"></div> Loading…
+        <div class="chart-loading" id="trendsChartLoading" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Synthesizing trend data…</span>
         </div>
-        <canvas id="trendsChart" role="img" aria-label="Conference trends over the last 6 months"></canvas>
+        <canvas id="trendsChart" role="img" aria-label="Line chart showing conference bookings trajectory over the past 6 months"></canvas>
       </div>
-    </div>
+    </section>
 
-    <!-- Donut Chart: Category Distribution -->
-    <div class="card chart-card">
-      <div class="card-header">
+    <!-- Donut Chart: Category Breakdown -->
+    <section class="card chart-card" aria-labelledby="cat-chart-title">
+      <header class="card-header">
         <div class="card-title-wrap">
-          <span class="card-icon">🍩</span>
-          <span class="card-title">Category Distribution</span>
+          <span class="card-icon" aria-hidden="true">🍩</span>
+          <h2 class="card-title" id="cat-chart-title">Catalog Distribution</h2>
         </div>
-        <span class="card-subtitle">Items by category</span>
-      </div>
+        <span class="card-subtitle">Items by Category Share</span>
+      </header>
       <div class="card-body chart-wrapper">
-        <div class="chart-loading" id="categoryChartLoading">
-          <div class="spinner"></div> Loading…
+        <div class="chart-loading" id="categoryChartLoading" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Calculating distribution…</span>
         </div>
-        <canvas id="categoryChart" role="img" aria-label="Items distributed by category"></canvas>
+        <canvas id="categoryChart" role="img" aria-label="Donut chart showing proportion of items across categories"></canvas>
       </div>
-    </div>
+    </section>
 
-    <!-- Bar Chart: Items per Category -->
-    <div class="card chart-card">
-      <div class="card-header">
+    <!-- Bar Chart: Items Per Category Volume -->
+    <section class="card chart-card" aria-labelledby="items-chart-title">
+      <header class="card-header">
         <div class="card-title-wrap">
-          <span class="card-icon">📦</span>
-          <span class="card-title">Items per Category</span>
+          <span class="card-icon" aria-hidden="true">📊</span>
+          <h2 class="card-title" id="items-chart-title">Category Density</h2>
         </div>
-        <span class="card-subtitle">Count breakdown</span>
-      </div>
+        <span class="card-subtitle">Item Counts per Classification</span>
+      </header>
       <div class="card-body chart-wrapper">
-        <div class="chart-loading" id="itemsChartLoading">
-          <div class="spinner"></div> Loading…
+        <div class="chart-loading" id="itemsChartLoading" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Loading catalog breakdown…</span>
         </div>
-        <canvas id="itemsChart" role="img" aria-label="Number of items per category"></canvas>
+        <canvas id="itemsChart" role="img" aria-label="Bar chart showing inventory item count breakdown by category"></canvas>
       </div>
-    </div>
+    </section>
 
-    <!-- Upcoming Conferences List -->
-    <div class="card">
-      <div class="card-header">
+    <!-- Upcoming Conference Schedule Widget -->
+    <section class="card schedule-card" aria-labelledby="upcoming-card-title">
+      <header class="card-header">
         <div class="card-title-wrap">
-          <span class="card-icon">📅</span>
-          <span class="card-title">Upcoming Conferences</span>
+          <span class="card-icon" aria-hidden="true">📅</span>
+          <h2 class="card-title" id="upcoming-card-title">Upcoming Schedule</h2>
+        </div>
+        <a href="#menu" class="card-header-link" title="View all conferences in Menu module">Full Agenda &rarr;</a>
+      </header>
+      <div class="card-body schedule-body">
+        <div id="upcomingList" class="schedule-list" role="feed" aria-label="Upcoming conferences feed">
+          <div class="loading"><div class="spinner"></div>Loading schedule…</div>
         </div>
       </div>
-      <div class="card-body">
-        <div id="upcomingList" class="list"></div>
-      </div>
-    </div>
+    </section>
   </div>
-</div>
+
+  <!-- Operational Quick Navigation / Environment Summary -->
+  <aside class="dashboard-footer-summary" aria-label="System Quick Access">
+    <div class="summary-meta">
+      <span class="summary-badge">⚡ Architecture: V8 Web App</span>
+      <span class="summary-badge">🗄️ Storage: Google Sheets DB</span>
+      <span class="summary-badge">🔐 RBAC Enforcement: Active</span>
+    </div>
+    <nav class="summary-shortcuts" aria-label="Quick Navigation">
+      <a href="#categories" class="shortcut-pill">🗂️ Categories</a>
+      <a href="#items" class="shortcut-pill">📦 Items</a>
+      <a href="#menu" class="shortcut-pill">📅 Conferences</a>
+      <a href="#settings" class="shortcut-pill">⚙️ Settings</a>
+    </nav>
+  </aside>
+</section>

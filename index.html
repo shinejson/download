@@ -35,6 +35,12 @@
       <a href="#settings" data-page="settings" class="nav-link">
         <span class="icon">⚙️</span><span>Settings</span>
       </a>
+      <a href="#" data-action="change-password" class="nav-link nav-link-action">
+        <span class="icon">🔐</span><span>Change Password</span>
+      </a>
+      <a href="#" data-action="logout" class="nav-link nav-link-action danger">
+        <span class="icon">🚪</span><span>Logout</span>
+      </a>
     </nav>
     <div class="sidebar-footer">© 2025 Conference Records</div>
   </aside>
@@ -46,8 +52,9 @@
       <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar">☰</button>
       <div class="page-title" id="topnavTitle">Dashboard</div>
       <div class="user-chip">
-        <div class="avatar">A</div>
-        <span>Admin</span>
+        <div class="avatar" id="userChipAvatar">A</div>
+        <span id="userChipName">Admin</span>
+        <span class="role-badge role-admin" id="userChipRole">ADMIN</span>
       </div>
     </header>
 

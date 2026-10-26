@@ -273,6 +273,9 @@
                 remember: remember,
                 ts: Date.now()
               }));
+              try {
+                google.script.run.withFailureHandler(function () {}).touchSession();
+              } catch (e) {}
               window.location.href = '<?= appUrl ?>';
             } else {
               setError('username', 'Invalid login attempt.');

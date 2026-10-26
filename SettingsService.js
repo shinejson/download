@@ -1,10 +1,12 @@
 const SETTINGS_SHEET = 'settings';
 
 function getSettings() {
+  requirePermission_('settings.view');
   return readAll_(SETTINGS_SHEET);
 }
 
 function saveSetting(key, value) {
+  requirePermission_('settings.edit');
   const sheet = getSheet_(SETTINGS_SHEET);
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) {

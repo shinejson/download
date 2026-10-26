@@ -3,11 +3,11 @@
  * Serves the HTML with routing based on ?page= query param.
  */
 function doGet(e) {
-  const isLoggedIn = !!PropertiesService.getUserProperties().getProperty('conference_records.username');
   const isLogout = e && e.parameter && e.parameter.logout === 'true';
+  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
 
   if (isLogout) {
-    PropertiesService.getUserProperties().deleteProperty('conference_records.username');
+    clearSession_();
     const template = HtmlService.createTemplateFromFile('login');
     template.appUrl = getAppUrl();
     return template.evaluate()
@@ -16,7 +16,8 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  if (!isLoggedIn) {
+  if (!username || isSessionExpired_()) {
+    clearSession_();
     const template = HtmlService.createTemplateFromFile('login');
     template.appUrl = getAppUrl();
     return template.evaluate()
@@ -24,6 +25,8 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
+
+  PropertiesService.getUserProperties().setProperty('conference_records.lastActivity', String(Date.now()));
 
   const page = (e && e.parameter && e.parameter.page) || 'dashboard';
   const template = HtmlService.createTemplateFromFile('index');
@@ -63,7 +66,7 @@ function getActiveSpreadsheetId_() {
 }
 
 /**
- * Router endpoint (optional): returns page title for client-side
+ * Router endpoint: returns page title for client-side
  */
 function getPageTitle(page) {
   const titles = {
@@ -81,6 +84,8 @@ function getPageTitle(page) {
  * Monthly conference trends for the last 6 months (line chart).
  */
 function getMonthlyTrends() {
+  requirePermission_('dashboard.view');
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('menu');
@@ -122,6 +127,8 @@ function getMonthlyTrends() {
  * Category breakdown for donut chart.
  */
 function getCategoryBreakdown() {
+  requirePermission_('dashboard.view');
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const catSheet = ss.getSheetByName('categories');
@@ -173,6 +180,8 @@ function getCategoryBreakdown() {
  * Items distribution by category for bar chart.
  */
 function getItemsDistribution() {
+  requirePermission_('dashboard.view');
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('items');
@@ -203,8 +212,15 @@ function getItemsDistribution() {
  * Dashboard stats aggregator - counts per sheet
  */
 function getDashboardStats() {
+  const user = requirePermission_('dashboard.view');
+  const canViewUsers = hasRolePermission_(user.role, 'users.view');
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = ['categories', 'items', 'menu', 'users'];
+  const sheets = ['categories', 'items', 'menu'];
+  if (canViewUsers) {
+    sheets.push('users');
+  }
+
   const stats = {};
 
   sheets.forEach(name => {
@@ -213,6 +229,10 @@ function getDashboardStats() {
     const lastRow = sheet.getLastRow();
     stats[name] = lastRow > 1 ? lastRow - 1 : 0;
   });
+
+  if (!canViewUsers) {
+    stats.users = null; // Signal to client that users stat is hidden
+  }
 
   // Upcoming conferences (menu sheet)
   const menuSheet = ss.getSheetByName('menu');
@@ -234,4 +254,81 @@ function getDashboardStats() {
 
   stats.upcoming = upcoming;
   return stats;
+}
+
+/**
+ * Get server-driven notifications for the user.
+ */
+function getNotifications() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const items = [];
+
+    const sheetChecks = [
+      { sheet: 'items', title: 'Inventory updated', message: 'items tracked in the system.', label: 'items' },
+      { sheet: 'menu', title: 'Conference schedule refreshed', message: 'conference records are available.', label: 'conferences' },
+      { sheet: 'users', title: 'User access updated', message: 'user accounts are active and ready.', label: 'accounts' },
+      { sheet: 'categories', title: 'Category list refreshed', message: 'categories are available for reporting.', label: 'categories' }
+    ];
+
+    sheetChecks.forEach(entry => {
+      const sheet = ss.getSheetByName(entry.sheet);
+      const count = sheet ? Math.max(sheet.getLastRow() - 1, 0) : 0;
+      if (count > 0) {
+        items.push({
+          id: entry.sheet,
+          title: entry.title,
+          message: `${count} ${entry.message}`,
+          timeLabel: 'New update',
+          unread: true
+        });
+      }
+    });
+
+    if (items.length === 0) {
+      items.push({
+        id: 'system-ready',
+        title: 'System ready',
+        message: 'No active records yet — add your first data entry to get started.',
+        timeLabel: 'Just now',
+        unread: false
+      });
+    }
+
+    return items.slice(0, 5);
+  } catch (err) {
+    console.error('getNotifications error', err);
+    return [{
+      id: 'notification-error',
+      title: 'System alert',
+      message: 'Unable to load notifications right now.',
+      timeLabel: 'Just now',
+      unread: false
+    }];
+  }
+}
+
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+function isSessionExpired_() {
+  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+  if (!username) return true;
+
+  const lastActivity = Number(PropertiesService.getUserProperties().getProperty('conference_records.lastActivity') || 0);
+  if (!lastActivity) return false;
+
+  return (Date.now() - lastActivity) > SESSION_TIMEOUT_MS;
+}
+
+function touchSession() {
+  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+  if (!username) return { ok: false, expired: true };
+
+  PropertiesService.getUserProperties().setProperty('conference_records.lastActivity', String(Date.now()));
+  return { ok: true, username: username };
+}
+
+function clearSession_() {
+  PropertiesService.getUserProperties().deleteProperty('conference_records.username');
+  PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
 }

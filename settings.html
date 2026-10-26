@@ -4,7 +4,16 @@
     Key/value store. Use for app configuration flags.
   </p>
   <div class="table-toolbar">
-    <input type="text" class="search" id="settingsSearch" placeholder="Search settings...">
+    <div class="toolbar-group">
+      <input type="text" class="search" id="settingsSearch" placeholder="Search settings...">
+      <select class="filter-select" id="settingsFilterType" aria-label="Settings filter type">
+        <option value="all">All settings</option>
+        <option value="contains">Contains</option>
+        <option value="starts">Starts with</option>
+        <option value="key">Key only</option>
+        <option value="value">Value only</option>
+      </select>
+    </div>
     <button class="btn btn-primary" id="settingsAddBtn">+ Add Setting</button>
   </div>
   <div id="settingsTableWrap">

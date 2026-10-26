@@ -1,7 +1,16 @@
 <div class="card">
   <h3>📦 Items</h3>
   <div class="table-toolbar">
-    <input type="text" class="search" id="itemsSearch" placeholder="Search items...">
+    <div class="toolbar-group">
+      <input type="text" class="search" id="itemsSearch" placeholder="Search items...">
+      <select class="filter-select" id="itemsFilterType" aria-label="Item filter type">
+        <option value="all">All items</option>
+        <option value="contains">Contains</option>
+        <option value="starts">Starts with</option>
+        <option value="short">Short names</option>
+        <option value="long">Long names</option>
+      </select>
+    </div>
     <button class="btn btn-primary" id="itemsAddBtn">+ Add Item</button>
   </div>
   <div id="itemsTableWrap">

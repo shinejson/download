@@ -1,5 +1,14 @@
 <div class="table-toolbar">
-  <input type="text" class="search" id="menuSearch" placeholder="Search conferences...">
+  <div class="toolbar-group">
+    <input type="text" class="search" id="menuSearch" placeholder="Search conferences...">
+    <select class="filter-select" id="menuFilterType" aria-label="Conference filter type">
+      <option value="all">All conferences</option>
+      <option value="contains">Contains</option>
+      <option value="starts">Starts with</option>
+      <option value="future">Future only</option>
+      <option value="past">Past only</option>
+    </select>
+  </div>
   <button class="btn btn-primary" id="menuAddBtn">+ Add Conference</button>
 </div>
 <div id="menuTableWrap">

@@ -1,7 +1,16 @@
 <div class="card">
   <h3>👥 Users</h3>
   <div class="table-toolbar">
-    <input type="text" class="search" id="usersSearch" placeholder="Search users...">
+    <div class="toolbar-group">
+      <input type="text" class="search" id="usersSearch" placeholder="Search users...">
+      <select class="filter-select" id="usersFilterType" aria-label="User filter type">
+        <option value="all">All users</option>
+        <option value="contains">Contains</option>
+        <option value="starts">Starts with</option>
+        <option value="active">Active only</option>
+        <option value="inactive">Inactive only</option>
+      </select>
+    </div>
     <button class="btn btn-primary" id="usersAddBtn">+ Add User</button>
   </div>
   <div id="usersTableWrap">

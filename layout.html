@@ -37,11 +37,51 @@
 <div id="main">
   <!-- TOP NAV -->
   <header id="topnav">
-    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar">☰</button>
+    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar" aria-expanded="true" aria-label="Toggle sidebar">☰</button>
     <div class="page-title" id="topnavTitle">Dashboard</div>
-    <div class="user-chip">
-      <div class="avatar">A</div>
-      <span>Admin</span>
+
+    <div class="topnav-actions">
+      <div class="notification-wrapper">
+        <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false">
+          🔔
+          <span class="notification-badge">3</span>
+        </button>
+
+        <div class="notification-panel hidden" id="notificationPanel" role="menu" aria-live="polite">
+          <div class="notification-header">
+            <strong>Notifications</strong>
+            <button type="button" class="link-btn" id="markNotificationsRead">Mark all read</button>
+          </div>
+          <div class="notification-list">
+            <div class="notification-item unread">
+              <div class="notification-dot"></div>
+              <div>
+                <strong>New user added</strong>
+                <small>2 minutes ago</small>
+              </div>
+            </div>
+            <div class="notification-item unread">
+              <div class="notification-dot"></div>
+              <div>
+                <strong>Conference report ready</strong>
+                <small>1 hour ago</small>
+              </div>
+            </div>
+            <div class="notification-item">
+              <div class="notification-dot"></div>
+              <div>
+                <strong>System backup complete</strong>
+                <small>Yesterday</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="user-chip">
+        <div class="avatar">A</div>
+        <span>Admin</span>
+      </div>
     </div>
   </header>
 

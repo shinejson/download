@@ -16,22 +16,33 @@ function hashPassword_(password, salt) {
 }
 
 function getUsers() {
-  // Don't return password to client for security
+  requirePermission_('users.view');
+
+  // Don't return password or salt to client for security
   return readAll_(USERS_SHEET).map(u => {
     const copy = Object.assign({}, u);
     delete copy.password;
     delete copy.passwordSalt;
+    copy.role = normalizeRole_(copy.role);
     return copy;
   });
 }
 
 function createUser(data) {
+  requirePermission_('users.create');
+
   if (!data || !data['username']) throw new Error('username is required');
   if (!data['password']) throw new Error('password is required');
 
   const username = normalizeUsername_(data['username']);
   if (!/^[a-z0-9._-]{3,50}$/i.test(username)) {
     throw new Error('username must be 3-50 characters and contain only letters, numbers, dots, underscores, or hyphens');
+  }
+
+  // Check if username already exists
+  const existingRows = readAll_(USERS_SHEET) || [];
+  if (existingRows.some(r => normalizeUsername_(r.username) === username)) {
+    throw new Error('Username already exists. Please choose a different username.');
   }
 
   if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])(?=.{8,128}$)/.test(String(data['password']))) {
@@ -43,20 +54,50 @@ function createUser(data) {
   data['username'] = username;
   data['password'] = hashPassword_(password, salt);
   data['passwordSalt'] = salt;
-  data['status'] = String(data['status'] || 'active').toLowerCase();
+  data['role'] = normalizeRole_(data['role'] || ROLES.STAFF);
+  data['status'] = String(data['status'] || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
   if (!data['userid']) data['userid'] = genId_('USR');
 
   return createRow_(USERS_SHEET, data);
 }
 
 function updateUser(id, data) {
+  requirePermission_('users.edit');
+
   if (!data) throw new Error('user data is required');
+
+  const rows = readAll_(USERS_SHEET) || [];
+  const targetUser = rows.find(r => String(r[USERS_ID]) === String(id));
+  if (!targetUser) throw new Error('User not found: ' + id);
+
   if (data['username']) {
     const username = normalizeUsername_(data['username']);
     if (!/^[a-z0-9._-]{3,50}$/i.test(username)) {
       throw new Error('username must be 3-50 characters and contain only letters, numbers, dots, underscores, or hyphens');
     }
+    // Check if new username belongs to another user
+    const duplicate = rows.find(r => normalizeUsername_(r.username) === username && String(r[USERS_ID]) !== String(id));
+    if (duplicate) throw new Error('Username is already taken by another account.');
     data['username'] = username;
+  }
+
+  // Protect against demoting or deactivating the last active administrator
+  const isTargetActiveAdmin = normalizeRole_(targetUser.role) === ROLES.ADMIN &&
+    String(targetUser.status || '').toLowerCase() === 'active';
+
+  if (isTargetActiveAdmin) {
+    const willBeDemoted = data['role'] !== undefined && normalizeRole_(data['role']) !== ROLES.ADMIN;
+    const willBeInactive = data['status'] !== undefined && String(data['status']).toLowerCase() !== 'active';
+
+    if (willBeDemoted || willBeInactive) {
+      if (countActiveAdmins_() <= 1) {
+        throw new Error('Cannot demote or deactivate the only active Administrator.');
+      }
+    }
+  }
+
+  if (data['role'] !== undefined) {
+    data['role'] = normalizeRole_(data['role']);
   }
 
   if (data['password']) {
@@ -69,11 +110,30 @@ function updateUser(id, data) {
     data['passwordSalt'] = salt;
   }
 
-  if (data['status']) data['status'] = String(data['status']).toLowerCase();
+  if (data['status']) data['status'] = String(data['status']).toLowerCase() === 'inactive' ? 'inactive' : 'active';
+
   return updateRow_(USERS_SHEET, USERS_ID, id, data);
 }
 
 function deleteUser(id) {
+  requirePermission_('users.delete');
+
+  const rows = readAll_(USERS_SHEET) || [];
+  const targetUser = rows.find(r => String(r[USERS_ID]) === String(id));
+  if (!targetUser) throw new Error('User not found: ' + id);
+
+  const currentUser = getCurrentUser_();
+  if (currentUser && String(currentUser[USERS_ID]) === String(id)) {
+    throw new Error('You cannot delete your own logged-in account.');
+  }
+
+  const isTargetActiveAdmin = normalizeRole_(targetUser.role) === ROLES.ADMIN &&
+    String(targetUser.status || '').toLowerCase() === 'active';
+
+  if (isTargetActiveAdmin && countActiveAdmins_() <= 1) {
+    throw new Error('Cannot delete the only active Administrator.');
+  }
+
   return deleteRow_(USERS_SHEET, USERS_ID, id);
 }
 
@@ -86,7 +146,7 @@ function ensureDefaultAdmin_() {
     username: 'admin',
     firstname: 'System',
     lastname: 'Administrator',
-    role: 'admin',
+    role: ROLES.ADMIN,
     status: 'active',
     email: 'admin@localhost',
     department: 'Administration'
@@ -147,15 +207,19 @@ function authenticateUser(username, password) {
   }
 
   PropertiesService.getUserProperties().setProperty('conference_records.username', cleanUser);
+  const normalizedRole = normalizeRole_(user.role);
+
   return {
     ok: true,
     username: user.username,
-    role: user.role || 'admin'
+    role: normalizedRole,
+    permissions: getRolePermissions_(normalizedRole)
   };
 }
 
 function logoutUser() {
   PropertiesService.getUserProperties().deleteProperty('conference_records.username');
+  PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
   return { ok: true };
 }
 
@@ -169,6 +233,12 @@ function changePassword(username, currentPassword, newPassword) {
   if (!next) throw new Error('new password is required');
   if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])(?=.{8,128}$)/.test(next)) {
     throw new Error('password must include uppercase, lowercase, number, and symbol, and be 8-128 characters long');
+  }
+
+  const currentUser = getCurrentUser_();
+  // If not logged-in user changing their own password, require users.edit permission
+  if (!currentUser || normalizeUsername_(currentUser.username) !== cleanUser) {
+    requirePermission_('users.edit');
   }
 
   const rows = readAll_(USERS_SHEET) || [];
@@ -194,19 +264,32 @@ function changePassword(username, currentPassword, newPassword) {
 function getCurrentUserProfile() {
   const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
   if (!username) {
-    return { username: '', fullName: '', role: 'admin' };
+    return {
+      username: '',
+      fullName: '',
+      role: ROLES.VIEWER,
+      permissions: []
+    };
   }
 
   const rows = readAll_(USERS_SHEET) || [];
   const user = rows.find(row => normalizeUsername_(row.username) === normalizeUsername_(username));
   if (!user) {
-    return { username: String(username), fullName: String(username), role: 'admin' };
+    return {
+      username: String(username),
+      fullName: String(username),
+      role: ROLES.VIEWER,
+      permissions: []
+    };
   }
 
   const fullName = [user.firstname, user.lastname].filter(Boolean).join(' ').trim();
+  const role = normalizeRole_(user.role);
+
   return {
     username: String(user.username || username),
     fullName: fullName || String(user.username || username),
-    role: String(user.role || 'admin')
+    role: role,
+    permissions: getRolePermissions_(role)
   };
 }
