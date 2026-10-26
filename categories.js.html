@@ -1,0 +1,55 @@
+<script>
+Pages.dashboard = (function () {
+  function init() {
+    // Quick action buttons
+    document.querySelectorAll('[data-quick]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.dataset.quick;
+        App.navigate(page);
+        setTimeout(() => {
+          const map = {
+            categories: 'categoriesAddBtn',
+            items: 'itemsAddBtn',
+            menu: 'menuAddBtn',
+            users: 'usersAddBtn'
+          };
+          const el = document.getElementById(map[page]);
+          if (el) el.click();
+        }, 300);
+      });
+    });
+    load();
+  }
+
+  function onShow() { load(); }
+
+  function load() {
+    google.script.run
+      .withSuccessHandler(render)
+      .withFailureHandler(err => App.toast(err.message || 'Failed to load stats', 'error'))
+      .getDashboardStats();
+  }
+
+  function render(stats) {
+    Object.keys(stats).forEach(k => {
+      const el = document.querySelector(`[data-stat="${k}"]`);
+      if (el && typeof stats[k] === 'number') el.textContent = stats[k];
+    });
+    const listEl = document.getElementById('upcomingList');
+    if (!stats.upcoming || stats.upcoming.length === 0) {
+      listEl.innerHTML = '<div class="empty-state">No upcoming conferences.</div>';
+      return;
+    }
+    listEl.innerHTML = stats.upcoming.map(u => `
+      <div class="list-item">
+        <div>
+          <div class="title">${App.esc(u.conference)}</div>
+          <div class="meta">${App.esc(u.date)} · ${App.esc(u.pax)} pax</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  return { init, onShow, load };
+})();
+</script>

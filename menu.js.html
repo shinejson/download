@@ -1,0 +1,88 @@
+<script>
+Pages.items = (function () {
+  let records = [];
+
+  function init() {
+    document.getElementById('itemsAddBtn').addEventListener('click', () => openForm());
+    document.getElementById('itemsSearch').addEventListener('input', (e) => render(e.target.value));
+  }
+
+  function onShow() { load(); }
+
+  function load() {
+    const wrap = document.getElementById('itemsTableWrap');
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    google.script.run
+      .withSuccessHandler(data => { records = data || []; render(); })
+      .withFailureHandler(err => {
+        wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
+      })
+      .getItems();
+  }
+
+  function render(filter = '') {
+    const wrap = document.getElementById('itemsTableWrap');
+    const q = filter.toLowerCase();
+    const filtered = !q ? records : records.filter(r =>
+      String(r['ID']).toLowerCase().includes(q) ||
+      String(r['Items Name']).toLowerCase().includes(q)
+    );
+    App.renderTable(
+      wrap,
+      ['ID', 'Items Name', 'Actions'],
+      filtered,
+      r => `
+        <tr>
+          <td><code>${App.esc(r['ID'])}</code></td>
+          <td>${App.esc(r['Items Name'])}</td>
+          <td class="actions-cell">
+            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}">Edit</button>
+            <button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}">Delete</button>
+          </td>
+        </tr>
+      `,
+      'No items yet.'
+    );
+    wrap.querySelectorAll('[data-edit]').forEach(b => {
+      b.onclick = () => openForm(records.find(x => String(x['ID']) === b.dataset.edit));
+    });
+    wrap.querySelectorAll('[data-del]').forEach(b => {
+      b.onclick = () => remove(b.dataset.del);
+    });
+  }
+
+  function openForm(record) {
+    const isEdit = !!record;
+    App.openModal({
+      title: isEdit ? 'Edit Item' : 'New Item',
+      fields: [
+        { name: 'Items Name', label: 'Items Name', value: record ? record['Items Name'] : '' }
+      ],
+      onSave: (data) => new Promise((resolve, reject) => {
+        if (!data['Items Name']) return reject(new Error('Name is required'));
+        if (isEdit) {
+          google.script.run
+            .withSuccessHandler(() => { App.toast('Item updated'); load(); resolve(); })
+            .withFailureHandler(reject)
+            .updateItem(record['ID'], data);
+        } else {
+          google.script.run
+            .withSuccessHandler(() => { App.toast('Item created'); load(); resolve(); })
+            .withFailureHandler(reject)
+            .createItem(data);
+        }
+      })
+    });
+  }
+
+  function remove(id) {
+    if (!window.confirm('Delete this item?')) return;
+    google.script.run
+      .withSuccessHandler(() => { App.toast('Item deleted'); load(); })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteItem(id);
+  }
+
+  return { init, onShow, load };
+})();
+</script>

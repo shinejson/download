@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Conference Records</title>
+  <?!= include('client/styles'); ?>
+</head>
+<body>
+  <div id="app"></div>
+
+  <?!= include('client/layout'); ?>
+  <?!= include('client/dashboard'); ?>
+  <?!= include('client/categories'); ?>
+  <?!= include('client/items'); ?>
+  <?!= include('client/menu'); ?>
+  <?!= include('client/users'); ?>
+  <?!= include('client/settings'); ?>
+
+  <?!= include('client/common.js'); ?>
+  <?!= include('client/dashboard.js'); ?>
+  <?!= include('client/categories.js'); ?>
+  <?!= include('client/items.js'); ?>
+  <?!= include('client/menu.js'); ?>
+  <?!= include('client/users.js'); ?>
+  <?!= include('client/settings.js'); ?>
+
+  <script>
+    const INITIAL_PAGE = '<?= page ?>';
+    const SHEET_ID = '<?= sheetId ?>';
+    document.addEventListener('DOMContentLoaded', function () {
+      App.init(INITIAL_PAGE);
+    });
+  </script>
+</body>
+</html>

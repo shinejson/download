@@ -1,0 +1,53 @@
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sidebar-brand">
+    <div class="logo">📊</div>
+    <span>Conference Records</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#dashboard" data-page="dashboard" class="nav-link">
+      <span class="icon">🏠</span><span>Dashboard</span>
+    </a>
+    <a href="#categories" data-page="categories" class="nav-link">
+      <span class="icon">🗂️</span><span>Categories</span>
+    </a>
+    <a href="#items" data-page="items" class="nav-link">
+      <span class="icon">📦</span><span>Items</span>
+    </a>
+    <a href="#menu" data-page="menu" class="nav-link">
+      <span class="icon">📅</span><span>Menu</span>
+    </a>
+    <a href="#users" data-page="users" class="nav-link">
+      <span class="icon">👥</span><span>Users</span>
+    </a>
+    <a href="#settings" data-page="settings" class="nav-link">
+      <span class="icon">⚙️</span><span>Settings</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">© 2025 Conference Records</div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- TOP NAV -->
+  <header id="topnav">
+    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar">☰</button>
+    <div class="page-title" id="topnavTitle">Dashboard</div>
+    <div class="user-chip">
+      <div class="avatar">A</div>
+      <span>Admin</span>
+    </div>
+  </header>
+
+  <!-- CONTENT -->
+  <main id="content">
+  <div id="page-dashboard" class="page"><?!= include('client/dashboard'); ?></div>
+  <div id="page-categories" class="page"><?!= include('client/categories'); ?></div>
+  <div id="page-items" class="page"><?!= include('client/items'); ?></div>
+  <div id="page-menu" class="page"><?!= include('client/menu'); ?></div>
+  <div id="page-users" class="page"><?!= include('client/users'); ?></div>
+  <div id="page-settings" class="page"><?!= include('client/settings'); ?></div>
+</main>
+</div>
+
+<div id="toast"></div>

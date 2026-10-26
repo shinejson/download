@@ -1,0 +1,106 @@
+<script>
+Pages.menu = (function () {
+  let records = [];
+  let itemOptions = [];
+
+  function init() {
+    document.getElementById('menuAddBtn').addEventListener('click', () => openForm());
+    document.getElementById('menuSearch').addEventListener('input', (e) => render(e.target.value));
+    loadItems();
+  }
+
+  function onShow() { load(); }
+
+  function loadItems() {
+    google.script.run
+      .withSuccessHandler(data => { itemOptions = data || []; })
+      .withFailureHandler(() => { itemOptions = []; })
+      .getItems();
+  }
+
+  function load() {
+    const wrap = document.getElementById('menuTableWrap');
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    google.script.run
+      .withSuccessHandler(data => { records = data || []; render(); })
+      .withFailureHandler(err => {
+        wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
+      })
+      .getMenuRecords();
+  }
+
+  function render(filter = '') {
+    const wrap = document.getElementById('menuTableWrap');
+    const q = filter.toLowerCase();
+    const filtered = !q ? records : records.filter(r =>
+      Object.values(r).some(v => String(v).toLowerCase().includes(q))
+    );
+    App.renderTable(
+      wrap,
+      ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions'],
+      filtered,
+      r => `
+        <tr>
+          <td><code>${App.esc(r.mid)}</code></td>
+          <td>${App.esc(r['conference name'])}</td>
+          <td>${App.esc(r.date)}</td>
+          <td>${App.esc(r.pax)}</td>
+          <td>${App.esc(r.menu)}</td>
+          <td>${App.esc(r.remarks)}</td>
+          <td class="actions-cell">
+            <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>
+            <button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>
+          </td>
+        </tr>
+      `,
+      'No conferences yet.'
+    );
+    wrap.querySelectorAll('[data-edit]').forEach(b => {
+      b.onclick = () => openForm(records.find(x => String(x.mid) === b.dataset.edit));
+    });
+    wrap.querySelectorAll('[data-del]').forEach(b => {
+      b.onclick = () => remove(b.dataset.del);
+    });
+  }
+
+  function openForm(record) {
+    const isEdit = !!record;
+    const menuVal = record ? record.menu : '';
+    const fields = [
+      { name: 'conference name', label: 'Conference name', value: record ? record['conference name'] : '' },
+      { name: 'date', label: 'Date', type: 'date', value: record ? record.date : '' },
+      { name: 'pax', label: 'Pax', type: 'number', value: record ? record.pax : '' },
+      { name: 'menu', label: 'Menu (item name)', value: menuVal },
+      { name: 'remarks', label: 'Remarks', type: 'textarea', value: record ? record.remarks : '' }
+    ];
+    App.openModal({
+      title: isEdit ? 'Edit Conference' : 'New Conference',
+      fields: fields,
+      onSave: (data) => new Promise((resolve, reject) => {
+        if (!data['conference name']) return reject(new Error('Conference name is required'));
+        if (isEdit) {
+          google.script.run
+            .withSuccessHandler(() => { App.toast('Conference updated'); load(); resolve(); })
+            .withFailureHandler(reject)
+            .updateMenu(record.mid, data);
+        } else {
+          google.script.run
+            .withSuccessHandler(() => { App.toast('Conference created'); load(); resolve(); })
+            .withFailureHandler(reject)
+            .createMenu(data);
+        }
+      })
+    });
+  }
+
+  function remove(id) {
+    if (!window.confirm('Delete this conference record?')) return;
+    google.script.run
+      .withSuccessHandler(() => { App.toast('Conference deleted'); load(); })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteMenu(id);
+  }
+
+  return { init, onShow, load };
+})();
+</script>
