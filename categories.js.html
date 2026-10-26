@@ -1,14 +1,74 @@
 <script>
 Pages.categories = (function () {
   let records = [];
+  let page = 1;
+  let pageSize = 10;
+  let searchQuery = '';
+  let lengthFilter = 'all';
+  let sortOrder = 'name_asc';
 
   function init() {
-    document.getElementById('categoriesAddBtn').addEventListener('click', () => openForm());
-    const search = document.getElementById('categoriesSearch');
-    const filterType = document.getElementById('categoriesFilterType');
-    search.addEventListener('input', () => render(search.value, filterType ? filterType.value : 'all'));
-    if (filterType) {
-      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    const addBtn = document.getElementById('categoriesAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openForm());
+
+    const searchInput = document.getElementById('categoriesSearchInput');
+    const clearBtn = document.getElementById('categoriesSearchClearBtn');
+    const lengthSelect = document.getElementById('categoriesLengthFilter');
+    const sortSelect = document.getElementById('categoriesSortOrder');
+    const resetBtn = document.getElementById('categoriesResetFiltersBtn');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+        }
+        searchQuery = '';
+        clearBtn.style.display = 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (lengthSelect) {
+      lengthSelect.addEventListener('change', (e) => {
+        lengthFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        sortOrder = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        searchQuery = '';
+        lengthFilter = 'all';
+        sortOrder = 'name_asc';
+        page = 1;
+
+        if (searchInput) searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (lengthSelect) lengthSelect.value = 'all';
+        if (sortSelect) sortSelect.value = 'name_asc';
+
+        render();
+      });
     }
   }
 
@@ -27,7 +87,7 @@ Pages.categories = (function () {
   function load() {
     updateControls();
     const wrap = document.getElementById('categoriesTableWrap');
-    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading categories...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
@@ -36,52 +96,95 @@ Pages.categories = (function () {
       .getCategories();
   }
 
-  function render(filter = '', filterType = 'all') {
-    updateControls();
-    const wrap = document.getElementById('categoriesTableWrap');
-    const q = String(filter || '').trim().toLowerCase();
-    const filtered = !q ? records : records.filter(r => {
-      const value = String(r['Categories name'] || '').toLowerCase();
-      switch (filterType) {
-        case 'starts':
-          return value.startsWith(q);
-        case 'contains':
-          return value.includes(q);
-        case 'short':
-          return value.length > 0 && value.length <= 6;
-        case 'long':
-          return value.length > 12;
+  function getFilteredAndSorted() {
+    const q = searchQuery.toLowerCase();
+
+    let list = records.filter(r => {
+      const name = String(r['Categories name'] || '');
+      const id = String(r['ID'] || '');
+
+      // Length filter
+      if (lengthFilter === 'short' && (name.length === 0 || name.length > 6)) return false;
+      if (lengthFilter === 'long' && name.length <= 12) return false;
+
+      // Text search
+      if (q) {
+        const matchName = name.toLowerCase().includes(q);
+        const matchId = id.toLowerCase().includes(q);
+        if (!matchName && !matchId) return false;
+      }
+
+      return true;
+    });
+
+    // Sort list
+    list.sort((a, b) => {
+      const nameA = String(a['Categories name'] || '').toLowerCase();
+      const nameB = String(b['Categories name'] || '').toLowerCase();
+      const idA = String(a['ID'] || '');
+      const idB = String(b['ID'] || '');
+
+      switch (sortOrder) {
+        case 'name_desc':
+          return nameB.localeCompare(nameA);
+        case 'id_desc':
+          return idB.localeCompare(idA, undefined, { numeric: true });
+        case 'id_asc':
+          return idA.localeCompare(idB, undefined, { numeric: true });
+        case 'name_asc':
         default:
-          return value.includes(q) || String(r['ID'] || '').toLowerCase().includes(q);
+          return nameA.localeCompare(nameB);
       }
     });
 
+    return list;
+  }
+
+  function render() {
+    updateControls();
+    const wrap = document.getElementById('categoriesTableWrap');
+    if (!wrap) return;
+
+    const filtered = getFilteredAndSorted();
     const canEdit = App.can('categories.edit');
     const canDelete = App.can('categories.delete');
     const hasActions = canEdit || canDelete;
 
     const headers = hasActions
-      ? ['ID', 'Categories Name', 'Actions']
-      : ['ID', 'Categories Name'];
+      ? ['ID', 'Category Name', 'Actions']
+      : ['ID', 'Category Name'];
 
-    App.renderTable(
-      wrap,
-      headers,
-      filtered,
-      r => `
+    App.renderPaginatedTable({
+      container: wrap,
+      headers: headers,
+      rows: filtered,
+      page: page,
+      pageSize: pageSize,
+      emptyMsg: searchQuery || lengthFilter !== 'all'
+        ? 'No categories match your filter criteria.'
+        : 'No categories found.',
+      onPageChange: (newPage) => {
+        page = newPage;
+        render();
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize;
+        page = 1;
+        render();
+      },
+      rowRenderer: (r) => `
         <tr>
           <td><code>${App.esc(r['ID'])}</code></td>
-          <td>${App.esc(r['Categories name'])}</td>
+          <td><strong>${App.esc(r['Categories name'])}</strong></td>
           ${hasActions ? `
             <td class="actions-cell">
-              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}">Edit</button>` : ''}
-              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}">Delete</button>` : ''}
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}" title="Edit category"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}" title="Delete category"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
             </td>
           ` : ''}
         </tr>
-      `,
-      'No categories yet.'
-    );
+      `
+    });
 
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {

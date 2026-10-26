@@ -2,15 +2,88 @@
 Pages.menu = (function () {
   let records = [];
   let itemOptions = [];
+  let page = 1;
+  let pageSize = 10;
+  let searchQuery = '';
+  let timelineFilter = 'all';
+  let paxFilter = 'all';
+  let sortOrder = 'date_asc';
 
   function init() {
-    document.getElementById('menuAddBtn').addEventListener('click', () => openForm());
-    const search = document.getElementById('menuSearch');
-    const filterType = document.getElementById('menuFilterType');
-    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
-    if (filterType) {
-      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    const addBtn = document.getElementById('menuAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openForm());
+
+    const searchInput = document.getElementById('menuSearchInput');
+    const clearBtn = document.getElementById('menuSearchClearBtn');
+    const timelineSelect = document.getElementById('menuTimelineFilter');
+    const paxSelect = document.getElementById('menuPaxFilter');
+    const sortSelect = document.getElementById('menuSortOrder');
+    const resetBtn = document.getElementById('menuResetFiltersBtn');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
+        page = 1;
+        render();
+      });
     }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+        }
+        searchQuery = '';
+        clearBtn.style.display = 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (timelineSelect) {
+      timelineSelect.addEventListener('change', (e) => {
+        timelineFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (paxSelect) {
+      paxSelect.addEventListener('change', (e) => {
+        paxFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        sortOrder = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        searchQuery = '';
+        timelineFilter = 'all';
+        paxFilter = 'all';
+        sortOrder = 'date_asc';
+        page = 1;
+
+        if (searchInput) searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (timelineSelect) timelineSelect.value = 'all';
+        if (paxSelect) paxSelect.value = 'all';
+        if (sortSelect) sortSelect.value = 'date_asc';
+
+        render();
+      });
+    }
+
     if (App.can('items.view')) {
       loadItems();
     }
@@ -42,7 +115,7 @@ Pages.menu = (function () {
   function load() {
     updateControls();
     const wrap = document.getElementById('menuTableWrap');
-    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading conferences...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
@@ -51,64 +124,146 @@ Pages.menu = (function () {
       .getMenuRecords();
   }
 
-  function render(filter = '', filterType = 'all') {
-    const wrap = document.getElementById('menuTableWrap');
-    const q = String(filter || '').trim().toLowerCase();
-    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
-      const haystack = [
-        r['conference name'],
-        r.date,
-        r.pax,
-        r.menu,
-        r.remarks,
-        r.mid
-      ].join(' ').toLowerCase();
+  function getFilteredAndSorted() {
+    const q = searchQuery.toLowerCase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      if (filterType === 'future') {
-        return new Date(r.date) >= new Date() && haystack.includes(q);
+    let list = records.filter(r => {
+      // Timeline filter
+      if (timelineFilter !== 'all') {
+        const d = r.date ? new Date(r.date) : null;
+        if (!d || isNaN(d.getTime())) {
+          if (timelineFilter !== 'all') return false;
+        } else {
+          d.setHours(0, 0, 0, 0);
+          if (timelineFilter === 'upcoming' && d < today) return false;
+          if (timelineFilter === 'past' && d >= today) return false;
+          if (timelineFilter === 'this_month') {
+            if (d.getFullYear() !== today.getFullYear() || d.getMonth() !== today.getMonth()) {
+              return false;
+            }
+          }
+        }
       }
-      if (filterType === 'past') {
-        return new Date(r.date) < new Date() && haystack.includes(q);
+
+      // Pax filter
+      if (paxFilter !== 'all') {
+        const pax = Number(r.pax) || 0;
+        if (paxFilter === 'small' && pax >= 50) return false;
+        if (paxFilter === 'medium' && (pax < 50 || pax > 150)) return false;
+        if (paxFilter === 'large' && pax <= 150) return false;
       }
-      if (filterType === 'starts') {
-        return haystack.startsWith(q);
+
+      // Text search
+      if (q) {
+        const haystack = [
+          r['conference name'],
+          r.date,
+          r.pax,
+          r.menu,
+          r.remarks,
+          r.mid
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
-      if (filterType === 'contains') {
-        return haystack.includes(q);
-      }
-      return haystack.includes(q);
+
+      return true;
     });
 
+    // Sort list
+    list.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      const nameA = String(a['conference name'] || '').toLowerCase();
+      const nameB = String(b['conference name'] || '').toLowerCase();
+      const paxA = Number(a.pax) || 0;
+      const paxB = Number(b.pax) || 0;
+      const idA = String(a.mid || '');
+      const idB = String(b.mid || '');
+
+      switch (sortOrder) {
+        case 'date_desc':
+          return dateB - dateA;
+        case 'name_asc':
+          return nameA.localeCompare(nameB);
+        case 'pax_desc':
+          return paxB - paxA;
+        case 'pax_asc':
+          return paxA - paxB;
+        case 'id_desc':
+          return idB.localeCompare(idA, undefined, { numeric: true });
+        case 'date_asc':
+        default:
+          return dateA - dateB;
+      }
+    });
+
+    return list;
+  }
+
+  function render() {
+    const wrap = document.getElementById('menuTableWrap');
+    if (!wrap) return;
+
+    const filtered = getFilteredAndSorted();
     const canEdit = App.can('menu.edit');
     const canDelete = App.can('menu.delete');
     const hasActions = canEdit || canDelete;
 
     const headers = hasActions
-      ? ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks', 'Actions']
-      : ['mid', 'Conference', 'Date', 'Pax', 'Menu', 'Remarks'];
+      ? ['MID', 'Conference', 'Date', 'Pax', 'Menu Items', 'Remarks', 'Actions']
+      : ['MID', 'Conference', 'Date', 'Pax', 'Menu Items', 'Remarks'];
 
-    App.renderTable(
-      wrap,
-      headers,
-      filtered,
-      r => `
-        <tr>
-          <td><code>${App.esc(r.mid)}</code></td>
-          <td>${App.esc(r['conference name'])}</td>
-          <td>${App.esc(r.date)}</td>
-          <td>${App.esc(r.pax)}</td>
-          <td>${App.esc(r.menu)}</td>
-          <td>${App.esc(r.remarks)}</td>
-          ${hasActions ? `
-            <td class="actions-cell">
-              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}">Edit</button>` : ''}
-              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}">Delete</button>` : ''}
+    App.renderPaginatedTable({
+      container: wrap,
+      headers: headers,
+      rows: filtered,
+      page: page,
+      pageSize: pageSize,
+      emptyMsg: searchQuery || timelineFilter !== 'all' || paxFilter !== 'all'
+        ? 'No conferences match your filter criteria.'
+        : 'No conference records found.',
+      onPageChange: (newPage) => {
+        page = newPage;
+        render();
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize;
+        page = 1;
+        render();
+      },
+      rowRenderer: (r) => {
+        const d = r.date ? new Date(r.date) : null;
+        const isUpcoming = d && !isNaN(d.getTime()) && d >= new Date();
+        const dateFormatted = App.fmtDate(r.date);
+
+        return `
+          <tr>
+            <td><code>${App.esc(r.mid)}</code></td>
+            <td><strong>${App.esc(r['conference name'])}</strong></td>
+            <td>
+              <span style="display:inline-flex;align-items:center;gap:4px;">
+                ${dateFormatted ? `<i class="fa-regular fa-calendar" style="color:var(--text-light);font-size:11px;"></i> ${App.esc(dateFormatted)}` : '—'}
+                ${isUpcoming ? '<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-weight:600;margin-left:4px;">Upcoming</span>' : ''}
+              </span>
             </td>
-          ` : ''}
-        </tr>
-      `,
-      'No conferences yet.'
-    );
+            <td>
+              <span style="font-weight:600;color:var(--text);">${App.esc(r.pax || '—')}</span>
+              ${r.pax ? '<span style="font-size:11px;color:var(--text-light);"> pax</span>' : ''}
+            </td>
+            <td>${App.esc(r.menu || '—')}</td>
+            <td><small style="color:var(--text-light);">${App.esc(r.remarks || '—')}</small></td>
+            ${hasActions ? `
+              <td class="actions-cell">
+                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}" title="Edit conference"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+                ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}" title="Delete conference"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
+              </td>
+            ` : ''}
+          </tr>
+        `;
+      }
+    });
 
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {
@@ -164,6 +319,10 @@ Pages.menu = (function () {
   }
 
   function remove(id) {
+    if (!App.can('menu.delete')) {
+      App.toast('Permission denied: You cannot delete conference records.', 'error');
+      return;
+    }
     if (!window.confirm('Delete this conference record?')) return;
     google.script.run
       .withSuccessHandler(() => { App.toast('Conference deleted'); load(); refreshNotifications(); })

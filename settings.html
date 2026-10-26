@@ -1,22 +1,50 @@
 <div class="card">
-  <h3>⚙️ Application Settings</h3>
-  <p style="color:var(--text-light); font-size:13px; margin-bottom:14px;">
-    Key/value store. Use for app configuration flags.
-  </p>
-  <div class="table-toolbar">
-    <div class="toolbar-group">
-      <input type="text" class="search" id="settingsSearch" placeholder="Search settings...">
-      <select class="filter-select" id="settingsFilterType" aria-label="Settings filter type">
-        <option value="all">All settings</option>
-        <option value="contains">Contains</option>
-        <option value="starts">Starts with</option>
-        <option value="key">Key only</option>
-        <option value="value">Value only</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" id="settingsAddBtn">+ Add Setting</button>
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-sliders"></i> Application Settings</h3>
+    <button class="btn btn-primary" id="settingsAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Setting
+    </button>
   </div>
+  <p style="color:var(--text-light); font-size:13px; margin: -6px 0 16px 0;">
+    Centralized key/value configuration store for application-wide behavior and parameters.
+  </p>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search setting keys or values...">
+        <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-bullseye"></i> Search Target:
+        <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
+          <option value="all">Key &amp; Value</option>
+          <option value="key">Key Only</option>
+          <option value="value">Value Only</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
+          <option value="key_asc">Key (A &rarr; Z)</option>
+          <option value="key_desc">Key (Z &rarr; A)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
   <div id="settingsTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading...</div>
+    <div class="loading"><div class="spinner"></div>Loading settings...</div>
   </div>
 </div>

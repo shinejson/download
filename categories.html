@@ -1,16 +1,49 @@
-<div class="table-toolbar">
-  <div class="toolbar-group">
-    <input type="text" class="search" id="categoriesSearch" placeholder="Search categories...">
-    <select class="filter-select" id="categoriesFilterType" aria-label="Category filter type">
-      <option value="all">All names</option>
-      <option value="contains">Contains</option>
-      <option value="starts">Starts with</option>
-      <option value="short">Short names</option>
-      <option value="long">Long names</option>
-    </select>
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-layer-group"></i> Categories</h3>
+    <button class="btn btn-primary" id="categoriesAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Category
+    </button>
   </div>
-  <button class="btn btn-primary" id="categoriesAddBtn">+ Add Category</button>
-</div>
-<div id="categoriesTableWrap">
-  <div class="loading"><div class="spinner"></div>Loading...</div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="categoriesSearchInput" placeholder="Search by category name or ID...">
+        <button class="search-clear-btn" id="categoriesSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-text-width"></i> Length:
+        <select class="filter-select" id="categoriesLengthFilter" aria-label="Filter by name length">
+          <option value="all">All Lengths</option>
+          <option value="short">Short (&le; 6 chars)</option>
+          <option value="long">Long (&gt; 12 chars)</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="categoriesSortOrder" aria-label="Sort categories">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="id_desc">ID (Newest First)</option>
+          <option value="id_asc">ID (Oldest First)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="categoriesResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="categoriesTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading categories...</div>
+  </div>
 </div>

@@ -1,14 +1,86 @@
 <script>
 Pages.users = (function () {
   let records = [];
+  let page = 1;
+  let pageSize = 10;
+  let searchQuery = '';
+  let roleFilter = 'all';
+  let statusFilter = 'all';
+  let sortOrder = 'name_asc';
 
   function init() {
-    document.getElementById('usersAddBtn').addEventListener('click', () => openForm());
-    const search = document.getElementById('usersSearch');
-    const filterType = document.getElementById('usersFilterType');
-    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
-    if (filterType) {
-      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    const addBtn = document.getElementById('usersAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openForm());
+
+    const searchInput = document.getElementById('usersSearchInput');
+    const clearBtn = document.getElementById('usersSearchClearBtn');
+    const roleSelect = document.getElementById('usersRoleFilter');
+    const statusSelect = document.getElementById('usersStatusFilter');
+    const sortSelect = document.getElementById('usersSortOrder');
+    const resetBtn = document.getElementById('usersResetFiltersBtn');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+        }
+        searchQuery = '';
+        clearBtn.style.display = 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (roleSelect) {
+      roleSelect.addEventListener('change', (e) => {
+        roleFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (statusSelect) {
+      statusSelect.addEventListener('change', (e) => {
+        statusFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        sortOrder = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        searchQuery = '';
+        roleFilter = 'all';
+        statusFilter = 'all';
+        sortOrder = 'name_asc';
+        page = 1;
+
+        if (searchInput) searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (roleSelect) roleSelect.value = 'all';
+        if (statusSelect) statusSelect.value = 'all';
+        if (sortSelect) sortSelect.value = 'name_asc';
+
+        render();
+      });
     }
   }
 
@@ -27,7 +99,7 @@ Pages.users = (function () {
   function load() {
     updateControls();
     const wrap = document.getElementById('usersTableWrap');
-    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading users...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
@@ -36,65 +108,121 @@ Pages.users = (function () {
       .getUsers();
   }
 
-  function render(filter = '', filterType = 'all') {
-    const wrap = document.getElementById('usersTableWrap');
-    const q = String(filter || '').trim().toLowerCase();
-    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
-      const haystack = [
-        r.firstname,
-        r.lastname,
-        r.email,
-        r.username,
-        r.role,
-        r.department,
-        r.status,
-        r.userid
-      ].join(' ').toLowerCase();
+  function getFilteredAndSorted() {
+    const q = searchQuery.toLowerCase();
 
-      if (filterType === 'active') return String(r.status || '').toLowerCase() === 'active' && haystack.includes(q);
-      if (filterType === 'inactive') return String(r.status || '').toLowerCase() === 'inactive' && haystack.includes(q);
-      if (filterType === 'starts') return haystack.startsWith(q);
-      if (filterType === 'contains') return haystack.includes(q);
-      return haystack.includes(q);
+    let list = records.filter(r => {
+      // Role filter
+      if (roleFilter !== 'all' && String(r.role || '').toLowerCase() !== roleFilter) {
+        return false;
+      }
+      // Status filter
+      if (statusFilter !== 'all' && String(r.status || '').toLowerCase() !== statusFilter) {
+        return false;
+      }
+      // Text search
+      if (q) {
+        const haystack = [
+          r.firstname,
+          r.lastname,
+          r.email,
+          r.username,
+          r.role,
+          r.department,
+          r.status,
+          r.userid
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
     });
 
+    // Sort list
+    list.sort((a, b) => {
+      const nameA = ((a.firstname || '') + ' ' + (a.lastname || '')).trim().toLowerCase();
+      const nameB = ((b.firstname || '') + ' ' + (b.lastname || '')).trim().toLowerCase();
+      const userA = String(a.username || '').toLowerCase();
+      const userB = String(b.username || '').toLowerCase();
+      const roleA = String(a.role || '').toLowerCase();
+      const roleB = String(b.role || '').toLowerCase();
+      const idA = String(a.userid || '');
+      const idB = String(b.userid || '');
+
+      switch (sortOrder) {
+        case 'name_desc':
+          return nameB.localeCompare(nameA);
+        case 'username_asc':
+          return userA.localeCompare(userB);
+        case 'role_asc':
+          return roleA.localeCompare(roleB);
+        case 'id_desc':
+          return idB.localeCompare(idA, undefined, { numeric: true });
+        case 'id_asc':
+          return idA.localeCompare(idB, undefined, { numeric: true });
+        case 'name_asc':
+        default:
+          return nameA.localeCompare(nameB);
+      }
+    });
+
+    return list;
+  }
+
+  function render() {
+    const wrap = document.getElementById('usersTableWrap');
+    if (!wrap) return;
+
+    const filtered = getFilteredAndSorted();
     const canEdit = App.can('users.edit');
     const canDelete = App.can('users.delete');
     const hasActions = canEdit || canDelete;
     const currentUsername = App.currentUser ? String(App.currentUser.username).toLowerCase() : '';
 
     const headers = hasActions
-      ? ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions']
-      : ['userid', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status'];
+      ? ['User ID', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions']
+      : ['User ID', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status'];
 
-    App.renderTable(
-      wrap,
-      headers,
-      filtered,
-      r => {
+    App.renderPaginatedTable({
+      container: wrap,
+      headers: headers,
+      rows: filtered,
+      page: page,
+      pageSize: pageSize,
+      emptyMsg: searchQuery || roleFilter !== 'all' || statusFilter !== 'all'
+        ? 'No users match your filter criteria.'
+        : 'No users registered yet.',
+      onPageChange: (newPage) => {
+        page = newPage;
+        render();
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize;
+        page = 1;
+        render();
+      },
+      rowRenderer: (r) => {
         const isSelf = String(r.username || '').toLowerCase() === currentUsername;
         return `
           <tr>
             <td><code>${App.esc(r.userid)}</code></td>
-            <td>${App.esc(r.firstname)} ${App.esc(r.lastname)}</td>
-            <td>${App.esc(r.contact)}</td>
-            <td>${App.esc(r.email)}</td>
-            <td>${App.esc(r.username)}</td>
+            <td><strong>${App.esc(r.firstname)} ${App.esc(r.lastname)}</strong></td>
+            <td>${App.esc(r.contact || '—')}</td>
+            <td>${App.esc(r.email || '—')}</td>
+            <td><code>@${App.esc(r.username)}</code></td>
             <td>${roleBadge(r.role)}</td>
-            <td>${App.esc(r.department)}</td>
+            <td>${App.esc(r.department || '—')}</td>
             <td>${statusBadge(r.status)}</td>
             ${hasActions ? `
               <td class="actions-cell">
-                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}">Edit</button>` : ''}
-                ${(canDelete && !isSelf) ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}">Delete</button>` : ''}
+                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}" title="Edit user"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+                ${(canDelete && !isSelf) ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}" title="Delete user"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
                 ${(canDelete && isSelf) ? `<button class="btn btn-secondary btn-sm" disabled title="You cannot delete your own account" style="opacity:0.5;cursor:not-allowed;">Self</button>` : ''}
               </td>
             ` : ''}
           </tr>
         `;
-      },
-      'No users yet.'
-    );
+      }
+    });
 
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {

@@ -1,33 +1,30 @@
 <!-- SIDEBAR -->
 <aside id="sidebar">
   <div class="sidebar-brand">
-    <div class="logo">📊</div>
+    <div class="logo"><i class="fa-solid fa-chart-pie"></i></div>
     <span>Conference Records</span>
   </div>
   <nav class="sidebar-nav">
     <a href="#dashboard" data-page="dashboard" class="nav-link">
-      <span class="icon">🏠</span><span>Dashboard</span>
+      <span class="icon"><i class="fa-solid fa-gauge-high"></i></span><span>Dashboard</span>
     </a>
     <a href="#categories" data-page="categories" class="nav-link">
-      <span class="icon">🗂️</span><span>Categories</span>
+      <span class="icon"><i class="fa-solid fa-layer-group"></i></span><span>Categories</span>
     </a>
     <a href="#items" data-page="items" class="nav-link">
-      <span class="icon">📦</span><span>Items</span>
+      <span class="icon"><i class="fa-solid fa-boxes-stacked"></i></span><span>Items</span>
     </a>
     <a href="#menu" data-page="menu" class="nav-link">
-      <span class="icon">📅</span><span>Menu</span>
+      <span class="icon"><i class="fa-solid fa-calendar-days"></i></span><span>Menu</span>
     </a>
     <a href="#users" data-page="users" class="nav-link">
-      <span class="icon">👥</span><span>Users</span>
+      <span class="icon"><i class="fa-solid fa-users"></i></span><span>Users</span>
     </a>
     <a href="#settings" data-page="settings" class="nav-link">
-      <span class="icon">⚙️</span><span>Settings</span>
-    </a>
-    <a href="#" data-action="change-password" class="nav-link nav-link-action">
-      <span class="icon">🔐</span><span>Change Password</span>
+      <span class="icon"><i class="fa-solid fa-sliders"></i></span><span>Settings</span>
     </a>
     <a href="#" data-action="logout" class="nav-link nav-link-action danger">
-      <span class="icon">🚪</span><span>Logout</span>
+      <span class="icon"><i class="fa-solid fa-right-from-bracket"></i></span><span>Logout</span>
     </a>
   </nav>
   <div class="sidebar-footer">© 2025 Conference Records</div>
@@ -37,14 +34,16 @@
 <div id="main">
   <!-- TOP NAV -->
   <header id="topnav">
-    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar" aria-expanded="true" aria-label="Toggle sidebar">☰</button>
+    <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar" aria-expanded="true" aria-label="Toggle sidebar">
+      <i class="fa-solid fa-bars"></i>
+    </button>
     <div class="page-title" id="topnavTitle">Dashboard</div>
 
     <div class="topnav-actions">
       <div class="notification-wrapper">
-        <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false">
-          🔔
-          <span class="notification-badge">3</span>
+        <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false" title="Notifications">
+          <i class="fa-solid fa-bell"></i>
+          <span class="notification-badge" style="display:none;">0</span>
         </button>
 
         <div class="notification-panel hidden" id="notificationPanel" role="menu" aria-live="polite">
@@ -53,34 +52,64 @@
             <button type="button" class="link-btn" id="markNotificationsRead">Mark all read</button>
           </div>
           <div class="notification-list">
-            <div class="notification-item unread">
-              <div class="notification-dot"></div>
-              <div>
-                <strong>New user added</strong>
-                <small>2 minutes ago</small>
-              </div>
-            </div>
-            <div class="notification-item unread">
-              <div class="notification-dot"></div>
-              <div>
-                <strong>Conference report ready</strong>
-                <small>1 hour ago</small>
-              </div>
-            </div>
             <div class="notification-item">
               <div class="notification-dot"></div>
               <div>
-                <strong>System backup complete</strong>
-                <small>Yesterday</small>
+                <strong>Loading notifications...</strong>
+                <small>Please wait</small>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="user-chip">
-        <div class="avatar">A</div>
-        <span>Admin</span>
+      <!-- Rebuilt Interactive Profile Dropdown -->
+      <div class="profile-dropdown-wrapper" id="profileDropdownWrapper">
+        <button class="user-profile-btn" id="profileToggle" type="button" aria-haspopup="true" aria-expanded="false" title="Account Menu">
+          <div class="avatar" id="userChipAvatar">A</div>
+          <div class="user-profile-info">
+            <span class="user-profile-name" id="userChipName">Admin</span>
+            <span class="role-badge role-admin" id="userChipRole">ADMIN</span>
+          </div>
+          <i class="fa-solid fa-chevron-down profile-chevron"></i>
+        </button>
+
+        <div class="profile-dropdown hidden" id="profileDropdown" role="menu" aria-label="User profile menu">
+          <div class="profile-dropdown-header">
+            <div class="avatar avatar-lg" id="dropdownAvatar">A</div>
+            <div class="profile-header-details">
+              <strong id="dropdownFullName">System Administrator</strong>
+              <span class="profile-handle" id="dropdownUsername">@admin</span>
+              <span class="role-badge role-admin" id="dropdownRole">ADMIN</span>
+            </div>
+          </div>
+
+          <div class="profile-dropdown-divider"></div>
+
+          <div class="profile-dropdown-menu">
+            <button type="button" class="profile-menu-item" id="profileViewDetailsBtn">
+              <i class="fa-solid fa-id-badge"></i>
+              <span>My Account Details</span>
+            </button>
+            <button type="button" class="profile-menu-item" data-action="change-password">
+              <i class="fa-solid fa-key"></i>
+              <span>Change Password</span>
+            </button>
+            <button type="button" class="profile-menu-item" id="profileSettingsBtn" data-page="settings">
+              <i class="fa-solid fa-sliders"></i>
+              <span>Application Settings</span>
+            </button>
+          </div>
+
+          <div class="profile-dropdown-divider"></div>
+
+          <div class="profile-dropdown-footer">
+            <button type="button" class="profile-menu-item danger" data-action="logout">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </header>

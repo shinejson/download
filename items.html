@@ -1,19 +1,49 @@
 <div class="card">
-  <h3>📦 Items</h3>
-  <div class="table-toolbar">
-    <div class="toolbar-group">
-      <input type="text" class="search" id="itemsSearch" placeholder="Search items...">
-      <select class="filter-select" id="itemsFilterType" aria-label="Item filter type">
-        <option value="all">All items</option>
-        <option value="contains">Contains</option>
-        <option value="starts">Starts with</option>
-        <option value="short">Short names</option>
-        <option value="long">Long names</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" id="itemsAddBtn">+ Add Item</button>
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-boxes-stacked"></i> Items Inventory</h3>
+    <button class="btn btn-primary" id="itemsAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add Item
+    </button>
   </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="itemsSearchInput" placeholder="Search by item name or ID...">
+        <button class="search-clear-btn" id="itemsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-text-width"></i> Length:
+        <select class="filter-select" id="itemsLengthFilter" aria-label="Filter by item name length">
+          <option value="all">All Lengths</option>
+          <option value="short">Short (&le; 8 chars)</option>
+          <option value="long">Long (&gt; 12 chars)</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="itemsSortOrder" aria-label="Sort items">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="id_desc">ID (Newest First)</option>
+          <option value="id_asc">ID (Oldest First)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="itemsResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
   <div id="itemsTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading...</div>
+    <div class="loading"><div class="spinner"></div>Loading items...</div>
   </div>
 </div>

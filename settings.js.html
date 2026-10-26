@@ -1,14 +1,74 @@
 <script>
 Pages.settings = (function () {
   let records = [];
+  let page = 1;
+  let pageSize = 10;
+  let searchQuery = '';
+  let targetFilter = 'all';
+  let sortOrder = 'key_asc';
 
   function init() {
-    document.getElementById('settingsAddBtn').addEventListener('click', () => openForm());
-    const search = document.getElementById('settingsSearch');
-    const filterType = document.getElementById('settingsFilterType');
-    search.addEventListener('input', (e) => render(e.target.value, filterType ? filterType.value : 'all'));
-    if (filterType) {
-      filterType.addEventListener('change', () => render(search.value, filterType.value));
+    const addBtn = document.getElementById('settingsAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openForm());
+
+    const searchInput = document.getElementById('settingsSearchInput');
+    const clearBtn = document.getElementById('settingsSearchClearBtn');
+    const targetSelect = document.getElementById('settingsTargetFilter');
+    const sortSelect = document.getElementById('settingsSortOrder');
+    const resetBtn = document.getElementById('settingsResetFiltersBtn');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+        }
+        searchQuery = '';
+        clearBtn.style.display = 'none';
+        page = 1;
+        render();
+      });
+    }
+
+    if (targetSelect) {
+      targetSelect.addEventListener('change', (e) => {
+        targetFilter = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        sortOrder = e.target.value;
+        page = 1;
+        render();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        searchQuery = '';
+        targetFilter = 'all';
+        sortOrder = 'key_asc';
+        page = 1;
+
+        if (searchInput) searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (targetSelect) targetSelect.value = 'all';
+        if (sortSelect) sortSelect.value = 'key_asc';
+
+        render();
+      });
     }
   }
 
@@ -27,7 +87,7 @@ Pages.settings = (function () {
   function load() {
     updateControls();
     const wrap = document.getElementById('settingsTableWrap');
-    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading settings...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
@@ -36,42 +96,81 @@ Pages.settings = (function () {
       .getSettings();
   }
 
-  function render(filter = '', filterType = 'all') {
-    const wrap = document.getElementById('settingsTableWrap');
-    const q = String(filter || '').trim().toLowerCase();
-    const filtered = !q && filterType === 'all' ? records : records.filter(r => {
+  function getFilteredAndSorted() {
+    const q = searchQuery.toLowerCase();
+
+    let list = records.filter(r => {
       const key = String(r.key || '').toLowerCase();
       const value = String(r.value || '').toLowerCase();
 
-      if (filterType === 'key') return key.includes(q);
-      if (filterType === 'value') return value.includes(q);
-      if (filterType === 'starts') return key.startsWith(q) || value.startsWith(q);
-      if (filterType === 'contains') return key.includes(q) || value.includes(q);
-      return key.includes(q) || value.includes(q);
+      if (q) {
+        if (targetFilter === 'key') {
+          if (!key.includes(q)) return false;
+        } else if (targetFilter === 'value') {
+          if (!value.includes(q)) return false;
+        } else {
+          if (!key.includes(q) && !value.includes(q)) return false;
+        }
+      }
+
+      return true;
     });
 
+    // Sort list
+    list.sort((a, b) => {
+      const keyA = String(a.key || '').toLowerCase();
+      const keyB = String(b.key || '').toLowerCase();
+
+      if (sortOrder === 'key_desc') {
+        return keyB.localeCompare(keyA);
+      }
+      return keyA.localeCompare(keyB);
+    });
+
+    return list;
+  }
+
+  function render() {
+    updateControls();
+    const wrap = document.getElementById('settingsTableWrap');
+    if (!wrap) return;
+
+    const filtered = getFilteredAndSorted();
     const canEdit = App.can('settings.edit');
     const headers = canEdit
-      ? ['Key', 'Value', 'Actions']
-      : ['Key', 'Value'];
+      ? ['Setting Key', 'Value', 'Actions']
+      : ['Setting Key', 'Value'];
 
-    App.renderTable(
-      wrap,
-      headers,
-      filtered,
-      r => `
+    App.renderPaginatedTable({
+      container: wrap,
+      headers: headers,
+      rows: filtered,
+      page: page,
+      pageSize: pageSize,
+      emptyMsg: searchQuery
+        ? 'No settings match your search.'
+        : 'No settings configured yet.',
+      onPageChange: (newPage) => {
+        page = newPage;
+        render();
+      },
+      onPageSizeChange: (newSize) => {
+        pageSize = newSize;
+        page = 1;
+        render();
+      },
+      rowRenderer: (r) => `
         <tr>
-          <td><code>${App.esc(r.key)}</code></td>
-          <td>${App.esc(r.value)}</td>
+          <td><code style="font-weight:600;color:var(--primary);">${App.esc(r.key)}</code></td>
+          <td style="max-width:320px;word-break:break-word;">${App.esc(r.value)}</td>
           ${canEdit ? `
             <td class="actions-cell">
-              <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}">Edit</button>
+              <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}" title="Edit setting"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
             </td>
           ` : ''}
         </tr>
-      `,
-      'No settings yet.'
-    );
+      `
+    });
 
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {

@@ -26,38 +26,65 @@ function getSheet_(name) {
   return sheet;
 }
 
+function getHeaders_(sheet, name) {
+  if (sheet && sheet.getLastRow() >= 1 && sheet.getLastColumn() >= 1) {
+    const raw = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const cleaned = raw.map(h => String(h != null ? h : '').trim()).filter(Boolean);
+    if (cleaned.length > 0) return cleaned;
+  }
+  return SHEET_HEADERS[name] || [];
+}
+
+function normKey_(key) {
+  return String(key || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function rowToObj_(headers, row) {
+  const obj = {};
+  headers.forEach((h, i) => {
+    let v = row[i];
+    if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    obj[h] = v;
+    const nk = normKey_(h);
+    if (nk && obj[nk] === undefined) {
+      obj[nk] = v;
+    }
+  });
+  return obj;
+}
+
 function readAll_(name) {
   const sheet = getSheet_(name);
-  const headers = SHEET_HEADERS[name];
+  const headers = getHeaders_(sheet, name);
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
+  if (lastRow < 2 || headers.length === 0) return [];
   const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
-  return values.map(row => {
-    const obj = {};
-    headers.forEach((h, i) => {
-      let v = row[i];
-      if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      obj[h] = v;
-    });
-    return obj;
-  });
+  return values.map(row => rowToObj_(headers, row));
 }
 
 function findRowById_(name, idField, idValue) {
   const sheet = getSheet_(name);
-  const headers = SHEET_HEADERS[name];
-  const idCol = headers.indexOf(idField) + 1;
+  const headers = getHeaders_(sheet, name);
+  const targetKey = normKey_(idField);
+  const idCol = headers.findIndex(h => normKey_(h) === targetKey) + 1;
+  if (idCol <= 0) return -1;
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   const ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues().flat();
-  const idx = ids.findIndex(v => String(v) === String(idValue));
+  const targetVal = String(idValue != null ? idValue : '').trim();
+  const idx = ids.findIndex(v => String(v != null ? v : '').trim() === targetVal);
   return idx === -1 ? -1 : idx + 2; // +2 => sheet row number
 }
 
 function createRow_(name, data) {
   const sheet = getSheet_(name);
-  const headers = SHEET_HEADERS[name];
-  const row = headers.map(h => data[h] !== undefined ? data[h] : '');
+  const headers = getHeaders_(sheet, name);
+  const row = headers.map(h => {
+    if (data[h] !== undefined) return data[h];
+    const nk = normKey_(h);
+    if (nk && data[nk] !== undefined) return data[nk];
+    return '';
+  });
   sheet.appendRow(row);
   return rowToObj_(headers, row);
 }
@@ -66,9 +93,14 @@ function updateRow_(name, idField, idValue, data) {
   const rowNum = findRowById_(name, idField, idValue);
   if (rowNum === -1) throw new Error('Record not found: ' + idValue);
   const sheet = getSheet_(name);
-  const headers = SHEET_HEADERS[name];
+  const headers = getHeaders_(sheet, name);
   const current = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
-  const updated = headers.map((h, i) => data[h] !== undefined ? data[h] : current[i]);
+  const updated = headers.map((h, i) => {
+    if (data[h] !== undefined) return data[h];
+    const nk = normKey_(h);
+    if (nk && data[nk] !== undefined) return data[nk];
+    return current[i];
+  });
   sheet.getRange(rowNum, 1, 1, headers.length).setValues([updated]);
   return rowToObj_(headers, updated);
 }
@@ -78,16 +110,6 @@ function deleteRow_(name, idField, idValue) {
   if (rowNum === -1) throw new Error('Record not found: ' + idValue);
   getSheet_(name).deleteRow(rowNum);
   return { success: true, id: idValue };
-}
-
-function rowToObj_(headers, row) {
-  const obj = {};
-  headers.forEach((h, i) => {
-    let v = row[i];
-    if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    obj[h] = v;
-  });
-  return obj;
 }
 
 function genId_(prefix) {

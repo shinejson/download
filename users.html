@@ -1,19 +1,62 @@
 <div class="card">
-  <h3>👥 Users</h3>
-  <div class="table-toolbar">
-    <div class="toolbar-group">
-      <input type="text" class="search" id="usersSearch" placeholder="Search users...">
-      <select class="filter-select" id="usersFilterType" aria-label="User filter type">
-        <option value="all">All users</option>
-        <option value="contains">Contains</option>
-        <option value="starts">Starts with</option>
-        <option value="active">Active only</option>
-        <option value="inactive">Inactive only</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" id="usersAddBtn">+ Add User</button>
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-users"></i> Users Management</h3>
+    <button class="btn btn-primary" id="usersAddBtn" type="button">
+      <i class="fa-solid fa-plus"></i> Add User
+    </button>
   </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="usersSearchInput" placeholder="Search by name, username, email, department, or user ID...">
+        <button class="search-clear-btn" id="usersSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-user-shield"></i> Role:
+        <select class="filter-select" id="usersRoleFilter" aria-label="Filter by role">
+          <option value="all">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="staff">Staff</option>
+          <option value="viewer">Viewer</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-circle-check"></i> Status:
+        <select class="filter-select" id="usersStatusFilter" aria-label="Filter by status">
+          <option value="all">All Statuses</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="usersSortOrder" aria-label="Sort users">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="username_asc">Username (A &rarr; Z)</option>
+          <option value="role_asc">Role (A &rarr; Z)</option>
+          <option value="id_desc">Newest First</option>
+          <option value="id_asc">Oldest First</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="usersResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
   <div id="usersTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading...</div>
+    <div class="loading"><div class="spinner"></div>Loading users...</div>
   </div>
 </div>

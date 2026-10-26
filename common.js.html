@@ -53,27 +53,44 @@ const App = (function () {
   }
 
   function setTopbarUser(user) {
-    const chip = document.querySelector('.user-chip');
-    if (!chip) return;
-    const nameEl = document.getElementById('userChipName') || chip.querySelector('span');
-    const avatarEl = document.getElementById('userChipAvatar') || chip.querySelector('.avatar');
-    const roleEl = document.getElementById('userChipRole');
-
     const displayName = (user && (user.fullName || user.username)) ? String(user.fullName || user.username).trim() : 'User';
+    const username = (user && user.username) ? String(user.username).trim() : 'user';
     const role = (user && user.role) ? String(user.role).toLowerCase() : 'viewer';
+    const initial = displayName.charAt(0).toUpperCase() || 'U';
 
-    if (nameEl) nameEl.textContent = displayName;
-    if (avatarEl) avatarEl.textContent = displayName.charAt(0).toUpperCase() || 'U';
+    // Topbar Profile Button / User Chip
+    const chipNameEl = document.getElementById('userChipName');
+    const chipAvatarEl = document.getElementById('userChipAvatar');
+    const chipRoleEl = document.getElementById('userChipRole');
 
-    if (roleEl) {
-      roleEl.textContent = role.toUpperCase();
-      roleEl.className = 'role-badge role-' + role;
-    } else {
-      const newRoleEl = document.createElement('span');
-      newRoleEl.id = 'userChipRole';
-      newRoleEl.textContent = role.toUpperCase();
-      newRoleEl.className = 'role-badge role-' + role;
-      chip.appendChild(newRoleEl);
+    if (chipNameEl) chipNameEl.textContent = displayName;
+    if (chipAvatarEl) chipAvatarEl.textContent = initial;
+    if (chipRoleEl) {
+      chipRoleEl.textContent = role.toUpperCase();
+      chipRoleEl.className = 'role-badge role-' + role;
+    }
+
+    // Dropdown Header
+    const dropdownAvatarEl = document.getElementById('dropdownAvatar');
+    const dropdownFullNameEl = document.getElementById('dropdownFullName');
+    const dropdownUsernameEl = document.getElementById('dropdownUsername');
+    const dropdownRoleEl = document.getElementById('dropdownRole');
+
+    if (dropdownAvatarEl) dropdownAvatarEl.textContent = initial;
+    if (dropdownFullNameEl) dropdownFullNameEl.textContent = displayName;
+    if (dropdownUsernameEl) dropdownUsernameEl.textContent = '@' + username;
+    if (dropdownRoleEl) {
+      dropdownRoleEl.textContent = role.toUpperCase();
+      dropdownRoleEl.className = 'role-badge role-' + role;
+    }
+
+    // Fallback for legacy .user-chip if present
+    const legacyChip = document.querySelector('.user-chip');
+    if (legacyChip && !chipNameEl) {
+      const name = legacyChip.querySelector('span');
+      const avatar = legacyChip.querySelector('.avatar');
+      if (name) name.textContent = displayName;
+      if (avatar) avatar.textContent = initial;
     }
   }
 
@@ -208,6 +225,9 @@ const App = (function () {
     loadNotifications();
   }
 
+  window.refreshNotifications = refreshNotifications;
+  window.loadNotifications = loadNotifications;
+
   function init(initialPage) {
     window.__appUrl__ = document.body.getAttribute('data-app-url') || (window.location.origin + window.location.pathname);
 
@@ -279,15 +299,72 @@ const App = (function () {
 
     loadNotifications();
 
+    // Profile Dropdown Controls
+    const profileToggle = document.getElementById('profileToggle');
+    const profileDropdown = document.getElementById('profileDropdown');
+    const profileDropdownWrapper = document.getElementById('profileDropdownWrapper');
+    const profileViewDetailsBtn = document.getElementById('profileViewDetailsBtn');
+    const profileSettingsBtn = document.getElementById('profileSettingsBtn');
+
+    if (profileToggle && profileDropdown) {
+      profileToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = profileDropdown.classList.contains('hidden');
+        profileDropdown.classList.toggle('hidden', !isHidden);
+        profileToggle.setAttribute('aria-expanded', String(isHidden));
+        // Close notifications panel if open
+        if (notificationPanel && !notificationPanel.classList.contains('hidden')) {
+          notificationPanel.classList.add('hidden');
+          if (notificationToggle) notificationToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (profileDropdownWrapper && !profileDropdownWrapper.contains(e.target)) {
+          profileDropdown.classList.add('hidden');
+          profileToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    if (profileViewDetailsBtn) {
+      profileViewDetailsBtn.addEventListener('click', () => {
+        if (profileDropdown) {
+          profileDropdown.classList.add('hidden');
+          if (profileToggle) profileToggle.setAttribute('aria-expanded', 'false');
+        }
+        showAccountDetailsModal();
+      });
+    }
+
+    if (profileSettingsBtn) {
+      profileSettingsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (profileDropdown) {
+          profileDropdown.classList.add('hidden');
+          if (profileToggle) profileToggle.setAttribute('aria-expanded', 'false');
+        }
+        navigate('settings');
+      });
+    }
+
     document.querySelectorAll('[data-action]').forEach(el => {
       el.addEventListener('click', (e) => {
         const action = el.dataset.action;
         if (action === 'logout') {
           e.preventDefault();
+          if (profileDropdown) {
+            profileDropdown.classList.add('hidden');
+            if (profileToggle) profileToggle.setAttribute('aria-expanded', 'false');
+          }
           logout();
         }
         if (action === 'change-password') {
           e.preventDefault();
+          if (profileDropdown) {
+            profileDropdown.classList.add('hidden');
+            if (profileToggle) profileToggle.setAttribute('aria-expanded', 'false');
+          }
           openChangePasswordModal();
         }
       });
@@ -454,6 +531,74 @@ const App = (function () {
       .getCurrentUserProfile();
   }
 
+  function showAccountDetailsModal() {
+    const user = currentUser || {};
+    const displayName = (user.fullName || (user.firstname ? (user.firstname + ' ' + (user.lastname || '')).trim() : user.username)) || 'User';
+    const role = String(user.role || 'viewer').toLowerCase();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width: 520px;">
+        <div class="modal-header">
+          <h3 style="display:flex;align-items:center;gap:8px;font-size:16px;">
+            <i class="fa-solid fa-id-badge" style="color:var(--primary);"></i>
+            <span>My Account Details</span>
+          </h3>
+          <button class="modal-close" type="button" aria-label="Close dialog">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+            <div class="avatar avatar-lg" style="width:54px;height:54px;font-size:22px;border-radius:50%;background:#e0e7ff;color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;">${esc(displayName.charAt(0).toUpperCase() || 'U')}</div>
+            <div>
+              <div style="font-size:17px;font-weight:700;color:var(--text);">${esc(displayName)}</div>
+              <div style="color:var(--text-light);font-size:13px;margin:2px 0 6px;">@${esc(user.username || 'user')}</div>
+              <span class="role-badge role-${esc(role)}">${esc(role.toUpperCase())}</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px;">
+            <div>
+              <label style="color:var(--text-light);font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:2px;">User ID</label>
+              <div style="font-weight:600;"><code>${esc(user.userid || '—')}</code></div>
+            </div>
+            <div>
+              <label style="color:var(--text-light);font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:2px;">Status</label>
+              <div><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#10b98120;color:#10b981;">Active</span></div>
+            </div>
+            <div>
+              <label style="color:var(--text-light);font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:2px;">Department</label>
+              <div style="font-weight:500;">${esc(user.department || 'General')}</div>
+            </div>
+            <div>
+              <label style="color:var(--text-light);font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:2px;">Contact</label>
+              <div style="font-weight:500;">${esc(user.contact || '—')}</div>
+            </div>
+            <div style="grid-column: span 2;">
+              <label style="color:var(--text-light);font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:2px;">Email Address</label>
+              <div style="font-weight:500;">${esc(user.email || '—')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+          <button class="btn btn-secondary btn-sm" type="button" id="modalChangePasswordQuickBtn">
+            <i class="fa-solid fa-key"></i> Change Password
+          </button>
+          <button class="btn btn-primary btn-sm" type="button" data-close>Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-close]').onclick = close;
+    const cpBtn = backdrop.querySelector('#modalChangePasswordQuickBtn');
+    if (cpBtn) {
+      cpBtn.onclick = () => {
+        close();
+        openChangePasswordModal();
+      };
+    }
+  }
+
   function openModal(opts) {
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop show';
@@ -531,14 +676,133 @@ const App = (function () {
     }
     const thead = '<tr>' + headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>';
     const tbody = rows.map((r, i) => rowRenderer(r, i)).join('');
-    container.innerHTML = `<table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    container.innerHTML = `<div class="table-responsive"><table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+  }
+
+  function renderPaginatedTable(opts) {
+    const container = opts.container;
+    const headers = opts.headers || [];
+    const rows = Array.isArray(opts.rows) ? opts.rows : [];
+    const rowRenderer = opts.rowRenderer;
+    const emptyMsg = opts.emptyMsg || 'No records found.';
+    const pageSize = Number(opts.pageSize) || 10;
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(Math.max(1, Number(opts.page) || 1), totalPages);
+    const onPageChange = typeof opts.onPageChange === 'function' ? opts.onPageChange : () => {};
+    const onPageSizeChange = typeof opts.onPageSizeChange === 'function' ? opts.onPageSizeChange : () => {};
+
+    if (!container) return;
+
+    if (total === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-inbox" style="font-size: 28px; color: #94a3b8; display: block; margin-bottom: 8px;"></i>
+          ${esc(emptyMsg)}
+        </div>
+      `;
+      return;
+    }
+
+    const startIdx = (page - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, total);
+    const pageRows = rows.slice(startIdx, endIdx);
+
+    const thead = '<tr>' + headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>';
+    const tbody = pageRows.map((r, i) => rowRenderer(r, startIdx + i)).join('');
+
+    let pageNumbers = [];
+    if (totalPages <= 7) {
+      for (let p = 1; p <= totalPages; p++) pageNumbers.push(p);
+    } else {
+      pageNumbers.push(1);
+      if (page > 3) pageNumbers.push('...');
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let p = start; p <= end; p++) {
+        pageNumbers.push(p);
+      }
+      if (page < totalPages - 2) pageNumbers.push('...');
+      pageNumbers.push(totalPages);
+    }
+
+    const pagesHtml = pageNumbers.map(p => {
+      if (p === '...') {
+        return '<span class="page-ellipsis">&hellip;</span>';
+      }
+      return `<button type="button" class="page-btn ${p === page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+    }).join('');
+
+    const sizeOptions = [5, 10, 25, 50];
+    const sizeOptsHtml = sizeOptions.map(s => `
+      <option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>
+    `).join('');
+
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>${thead}</thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>
+      <div class="pagination-bar">
+        <div class="pagination-info">
+          Showing <strong>${startIdx + 1}</strong> to <strong>${endIdx}</strong> of <strong>${total}</strong> records
+        </div>
+        <div class="pagination-controls">
+          <div class="pagination-size">
+            <label>Rows per page:
+              <select class="pagination-size-select">
+                ${sizeOptsHtml}
+              </select>
+            </label>
+          </div>
+          <div class="pagination-pages">
+            <button type="button" class="page-btn page-prev" ${page <= 1 ? 'disabled' : ''} title="Previous page" aria-label="Previous page">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            ${pagesHtml}
+            <button type="button" class="page-btn page-next" ${page >= totalPages ? 'disabled' : ''} title="Next page" aria-label="Next page">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const sizeSelect = container.querySelector('.pagination-size-select');
+    if (sizeSelect) {
+      sizeSelect.addEventListener('change', (e) => {
+        onPageSizeChange(Number(e.target.value));
+      });
+    }
+
+    const prevBtn = container.querySelector('.page-prev');
+    if (prevBtn && page > 1) {
+      prevBtn.addEventListener('click', () => onPageChange(page - 1));
+    }
+
+    const nextBtn = container.querySelector('.page-next');
+    if (nextBtn && page < totalPages) {
+      nextBtn.addEventListener('click', () => onPageChange(page + 1));
+    }
+
+    container.querySelectorAll('.pagination-pages button[data-page]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetPage = Number(btn.dataset.page);
+        if (targetPage !== page) {
+          onPageChange(targetPage);
+        }
+      });
+    });
   }
 
   return {
-    init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable,
+    init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable, renderPaginatedTable,
     isStrongPassword,
-    logout, openChangePasswordModal, setTopbarUser, loadCurrentUser,
+    logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser,
     can, canView, applyRolePermissions,
+    loadNotifications, refreshNotifications,
     get currentUser() { return currentUser; },
     get userPermissions() { return userPermissions; },
     get currentPage() { return currentPage; }
