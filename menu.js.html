@@ -125,14 +125,31 @@ Pages.menu = (function () {
     }
   }
 
+  function getTableWrap() {
+    let wrap = document.getElementById('menuTableWrap');
+    if (!wrap) {
+      const pageEl = document.getElementById('page-menu');
+      if (pageEl) {
+        wrap = pageEl.querySelector('#menuTableWrap');
+        if (!wrap) {
+          wrap = document.createElement('div');
+          wrap.id = 'menuTableWrap';
+          pageEl.appendChild(wrap);
+        }
+      }
+    }
+    return wrap;
+  }
+
   function load() {
     updateControls();
-    const wrap = document.getElementById('menuTableWrap');
+    const wrap = getTableWrap();
+    if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading conferences...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
-        wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
+        if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
       .getMenuRecords();
   }
@@ -253,7 +270,7 @@ Pages.menu = (function () {
   }
 
   function render() {
-    const wrap = document.getElementById('menuTableWrap');
+    const wrap = getTableWrap();
     if (!wrap) return;
 
     const filtered = getFilteredAndSorted();

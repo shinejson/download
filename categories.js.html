@@ -85,14 +85,31 @@ Pages.categories = (function () {
     load();
   }
 
+  function getTableWrap() {
+    let wrap = document.getElementById('categoriesTableWrap');
+    if (!wrap) {
+      const pageEl = document.getElementById('page-categories');
+      if (pageEl) {
+        wrap = pageEl.querySelector('#categoriesTableWrap');
+        if (!wrap) {
+          wrap = document.createElement('div');
+          wrap.id = 'categoriesTableWrap';
+          pageEl.appendChild(wrap);
+        }
+      }
+    }
+    return wrap;
+  }
+
   function load() {
     updateControls();
-    const wrap = document.getElementById('categoriesTableWrap');
+    const wrap = getTableWrap();
+    if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading categories...</div>';
     google.script.run
       .withSuccessHandler(data => { records = data || []; render(); })
       .withFailureHandler(err => {
-        wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
+        if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
       .getCategories();
   }
@@ -143,7 +160,7 @@ Pages.categories = (function () {
 
   function render() {
     updateControls();
-    const wrap = document.getElementById('categoriesTableWrap');
+    const wrap = getTableWrap();
     if (!wrap) return;
 
     const filtered = getFilteredAndSorted();

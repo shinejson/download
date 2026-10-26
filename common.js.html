@@ -109,8 +109,8 @@ var App = window.App = (function () {
       navigate('dashboard', true);
     } else {
       // Re-trigger onShow to let active page update its buttons
-      if (Pages[currentPage] && Pages[currentPage].onShow) {
-        try { Pages[currentPage].onShow(); } catch (e) {}
+      if (window.Pages && window.Pages[currentPage] && typeof window.Pages[currentPage].onShow === 'function') {
+        try { window.Pages[currentPage].onShow(); } catch (e) {}
       }
     }
   }
@@ -391,12 +391,12 @@ var App = window.App = (function () {
     startSessionTimer();
     loadCurrentUser();
 
-    if (Pages.dashboard && typeof Pages.dashboard.init === 'function') Pages.dashboard.init();
-    if (Pages.categories && typeof Pages.categories.init === 'function') Pages.categories.init();
-    if (Pages.items && typeof Pages.items.init === 'function') Pages.items.init();
-    if (Pages.menu && typeof Pages.menu.init === 'function') Pages.menu.init();
-    if (Pages.users && typeof Pages.users.init === 'function') Pages.users.init();
-    if (Pages.settings && typeof Pages.settings.init === 'function') Pages.settings.init();
+    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
+    pageKeys.forEach(k => {
+      if (window.Pages && window.Pages[k] && typeof window.Pages[k].init === 'function') {
+        try { window.Pages[k].init(); } catch (err) { console.error('Error initializing ' + k + ' page:', err); }
+      }
+    });
 
     const startPage = ROUTES.includes(initialPage) ? initialPage : 'dashboard';
     navigate(startPage, false);
@@ -431,8 +431,8 @@ var App = window.App = (function () {
       location.hash = page;
     }
 
-    if (Pages[page] && Pages[page].onShow) {
-      try { Pages[page].onShow(); } catch (err) { console.error(err); }
+    if (window.Pages && window.Pages[page] && typeof window.Pages[page].onShow === 'function') {
+      try { window.Pages[page].onShow(); } catch (err) { console.error('Error in onShow for ' + page + ':', err); }
     }
 
     if (window.innerWidth <= 768) {

@@ -41,9 +41,25 @@ function doGet(e) {
 
 /**
  * Include HTML partial (used for templating: <?!= include('client/styles') ?>)
+ * Robust fallback resolution supporting with or without .html / .js extensions.
  */
 function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  if (!filename) return '';
+  const clean = String(filename).trim();
+  const candidates = [
+    clean,
+    clean.replace(/\.html$/, ''),
+    clean + '.html',
+    clean.replace(/\.js$/, ''),
+    clean + '.js',
+    clean.replace(/\.js$/, '') + '.js.html'
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      return HtmlService.createHtmlOutputFromFile(candidates[i]).getContent();
+    } catch (e) {}
+  }
+  return '';
 }
 
 function isAuthenticated() {
