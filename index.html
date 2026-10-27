@@ -17,7 +17,7 @@
 </head>
 <body
   data-app-url="<?= typeof appUrl !== 'undefined' ? appUrl : '' ?>"
-  data-page="<?= typeof page !== 'undefined' ? page : 'dashboard' ?>"
+  data-initial-page="<?= typeof page !== 'undefined' ? page : 'dashboard' ?>"
   data-sheet-id="<?= typeof sheetId !== 'undefined' ? sheetId : '' ?>"
   data-company-name="<?= (typeof brand !== 'undefined' && brand && brand.company_name) ? brand.company_name : 'Conference Records' ?>"
   data-company-tagline="<?= (typeof brand !== 'undefined' && brand && brand.company_tagline) ? brand.company_tagline : '' ?>"
@@ -115,6 +115,8 @@
         </button>
       </div>
     </aside>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
     <!-- MAIN -->
     <div id="main">
@@ -239,7 +241,7 @@
     (function () {
       var bodyEl = document.body || {};
       var bodyData = bodyEl.dataset || {};
-      var INITIAL_PAGE = bodyData.page || 'dashboard';
+      var INITIAL_PAGE = bodyData.initialPage || bodyData.page || 'dashboard';
       var SHEET_ID = bodyData.sheetId || '';
       var APP_URL = bodyData.appUrl || '';
       window.__appUrl__ = APP_URL;

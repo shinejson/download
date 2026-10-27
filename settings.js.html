@@ -460,7 +460,13 @@ Pages.settings = (function () {
   function bindEvents() {
     // 1. Tab Navigation
     document.querySelectorAll('.settings-tab-btn').forEach(btn => {
-      btn.onclick = () => switchTab(btn.dataset.tab);
+      btn.onclick = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        switchTab(btn.dataset.tab);
+      };
     });
 
     // 2. Company Logo File Upload (auto-resized via canvas to safe storage dimensions)
