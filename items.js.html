@@ -7,23 +7,30 @@ Pages.items = (function () {
   let searchQuery = '';
   let lengthFilter = 'all';
   let sortOrder = 'name_asc';
+  let selectedIds = new Set();
 
   function ensurePageMarkup() {
     const pageEl = document.getElementById('page-items');
     if (!pageEl) return;
 
     const addBtn = document.getElementById('itemsAddBtn');
+    const importBtn = document.getElementById('itemsImportBtn');
     const wrap = document.getElementById('itemsTableWrap');
     const searchInput = document.getElementById('itemsSearchInput');
 
-    if (!addBtn || !wrap || !searchInput) {
+    if (!addBtn || !importBtn || !wrap || !searchInput) {
       pageEl.innerHTML = `
 <div class="card">
   <div class="card-header-bar">
     <h3><i class="fa-solid fa-boxes-stacked"></i> Items Inventory</h3>
-    <button class="btn btn-primary" id="itemsAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Item
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-secondary" id="itemsImportBtn" type="button">
+        <i class="fa-solid fa-file-import"></i> Import Items
+      </button>
+      <button class="btn btn-primary" id="itemsAddBtn" type="button">
+        <i class="fa-solid fa-plus"></i> Add Item
+      </button>
+    </div>
   </div>
 
   <div class="advanced-filter-bar">
@@ -63,6 +70,8 @@ Pages.items = (function () {
     </div>
   </div>
 
+  <div id="itemsBulkBar" class="bulk-action-bar" style="display:none;"></div>
+
   <div id="itemsTableWrap">
     <div class="loading"><div class="spinner"></div>Loading items...</div>
   </div>
@@ -74,6 +83,9 @@ Pages.items = (function () {
   function bindEvents() {
     const addBtn = document.getElementById('itemsAddBtn');
     if (addBtn) addBtn.onclick = () => openForm();
+
+    const importBtn = document.getElementById('itemsImportBtn');
+    if (importBtn) importBtn.onclick = () => openImportModal();
 
     const searchInput = document.getElementById('itemsSearchInput');
     const clearBtn = document.getElementById('itemsSearchClearBtn');
@@ -146,6 +158,71 @@ Pages.items = (function () {
     if (addBtn) {
       addBtn.style.display = App.can('items.create') ? '' : 'none';
     }
+    const importBtn = document.getElementById('itemsImportBtn');
+    if (importBtn) {
+      importBtn.style.display = App.can('items.create') ? '' : 'none';
+    }
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('itemsBulkBar');
+    if (!bar) return;
+    const canDel = App.can('items.delete');
+    if (selectedIds.size === 0 || !canDel) {
+      bar.style.display = 'none';
+      bar.innerHTML = '';
+      return;
+    }
+    bar.style.display = 'flex';
+    const count = selectedIds.size;
+    bar.innerHTML = `
+      <div class="bulk-action-info">
+        <i class="fa-solid fa-circle-check"></i>
+        <span><strong>${count}</strong> item${count === 1 ? '' : 's'} selected</span>
+      </div>
+      <div class="bulk-action-btns">
+        <button type="button" class="btn btn-danger btn-sm" id="itemsBulkDeleteBtn">
+          <i class="fa-solid fa-trash-can"></i> Delete Selected (${count})
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="itemsBulkClearBtn">
+          <i class="fa-solid fa-xmark"></i> Deselect All
+        </button>
+      </div>
+    `;
+    const delBtn = document.getElementById('itemsBulkDeleteBtn');
+    if (delBtn) delBtn.onclick = () => removeBulk();
+    const clearBtn = document.getElementById('itemsBulkClearBtn');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        selectedIds.clear();
+        render();
+      };
+    }
+  }
+
+  function removeBulk() {
+    if (!App.can('items.delete')) {
+      App.toast('Permission denied: You cannot delete items.', 'error');
+      return;
+    }
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${count} selected item${count === 1 ? '' : 's'}? This action cannot be undone.`)) {
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    App.toast(`Deleting ${count} item${count === 1 ? '' : 's'}...`, 'info');
+    google.script.run
+      .withSuccessHandler((res) => {
+        selectedIds.clear();
+        const deletedCount = (res && typeof res.count === 'number') ? res.count : count;
+        App.toast(`Successfully deleted ${deletedCount} item${deletedCount === 1 ? '' : 's'}.`);
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteItemsBulk(ids);
   }
 
   function onShow() {
@@ -173,7 +250,15 @@ Pages.items = (function () {
     if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading items...</div>';
     google.script.run
-      .withSuccessHandler(data => { records = data || []; render(); })
+      .withSuccessHandler(data => {
+        records = data || [];
+        // Prune selected IDs that no longer exist
+        const validIds = new Set(records.map(r => String(r['ID'])));
+        selectedIds.forEach(id => {
+          if (!validIds.has(id)) selectedIds.delete(id);
+        });
+        render();
+      })
       .withFailureHandler(err => {
         if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
@@ -234,9 +319,19 @@ Pages.items = (function () {
     const canDelete = App.can('items.delete');
     const hasActions = canEdit || canDelete;
 
-    const headers = hasActions
-      ? ['ID', 'Item Name', 'Actions']
-      : ['ID', 'Item Name'];
+    const startIdx = (page - 1) * pageSize;
+    const pageRows = filtered.slice(startIdx, startIdx + pageSize);
+    const allPageSelected = pageRows.length > 0 && pageRows.every(r => selectedIds.has(String(r['ID'])));
+
+    const headers = [];
+    if (canDelete) {
+      headers.push({
+        html: `<input type="checkbox" class="table-checkbox" id="itemsSelectAll" title="Select all on this page" ${allPageSelected ? 'checked' : ''}>`,
+        className: 'th-checkbox'
+      });
+    }
+    headers.push('ID', 'Item Name');
+    if (hasActions) headers.push('Actions');
 
     App.renderPaginatedTable({
       container: wrap,
@@ -256,18 +351,50 @@ Pages.items = (function () {
         page = 1;
         render();
       },
-      rowRenderer: (r) => `
-        <tr>
-          <td><code>${App.esc(r['ID'])}</code></td>
+      rowRenderer: (r) => {
+        const idStr = String(r['ID']);
+        const isSelected = selectedIds.has(idStr);
+        return `
+        <tr class="${isSelected ? 'row-selected' : ''}">
+          ${canDelete ? `
+            <td class="th-checkbox" style="text-align:center;">
+              <input type="checkbox" class="table-checkbox row-select-checkbox" data-select-id="${App.esc(idStr)}" ${isSelected ? 'checked' : ''}>
+            </td>
+          ` : ''}
+          <td><code>${App.esc(idStr)}</code></td>
           <td><strong>${App.esc(r['Items Name'])}</strong></td>
           ${hasActions ? `
             <td class="actions-cell">
-              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}" title="Edit item"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
-              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}" title="Delete item"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(idStr)}" title="Edit item"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(idStr)}" title="Delete item"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
             </td>
           ` : ''}
         </tr>
-      `
+      `;
+      }
+    });
+
+    // Checkbox event listeners
+    const selectAllEl = wrap.querySelector('#itemsSelectAll');
+    if (selectAllEl) {
+      selectAllEl.onchange = (e) => {
+        const checked = e.target.checked;
+        pageRows.forEach(r => {
+          const id = String(r['ID']);
+          if (checked) selectedIds.add(id);
+          else selectedIds.delete(id);
+        });
+        render();
+      };
+    }
+
+    wrap.querySelectorAll('.row-select-checkbox').forEach(cb => {
+      cb.onchange = (e) => {
+        const id = e.target.dataset.selectId;
+        if (e.target.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+        render();
+      };
     });
 
     if (canEdit) {
@@ -281,6 +408,8 @@ Pages.items = (function () {
         b.onclick = () => remove(b.dataset.del);
       });
     }
+
+    updateBulkBar();
   }
 
   function openForm(record) {
@@ -297,23 +426,207 @@ Pages.items = (function () {
     App.openModal({
       title: isEdit ? 'Edit Item' : 'New Item',
       fields: [
-        { name: 'Items Name', label: 'Items Name', value: record ? record['Items Name'] : '' }
+        { name: 'Items Name', label: 'Item Name', value: record ? record['Items Name'] : '' }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data['Items Name']) return reject(new Error('Name is required'));
+        const nameVal = (data['Items Name'] || '').trim();
+        if (!nameVal) return reject(new Error('Item name is required.'));
+
+        // Client-side duplicate validation
+        const isDup = records.some(r => {
+          if (isEdit && String(r['ID']) === String(record['ID'])) return false;
+          return String(r['Items Name'] || '').trim().toLowerCase() === nameVal.toLowerCase();
+        });
+        if (isDup) {
+          return reject(new Error(`An item named "${nameVal}" already exists.`));
+        }
+
+        const payload = { 'Items Name': nameVal };
+
         if (isEdit) {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item updated'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('Item updated');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
-            .updateItem(record['ID'], data);
+            .updateItem(record['ID'], payload);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Item created'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('Item created');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
-            .createItem(data);
+            .createItem(payload);
         }
       })
     });
+  }
+
+  function openImportModal() {
+    if (!App.can('items.create')) {
+      App.toast('Permission denied: You cannot create items.', 'error');
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-file-import"></i> Import Items</h3>
+          <button class="modal-close" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-top:0; font-size:13px; color:var(--text-muted); line-height:1.4;">
+            Paste item names (one per line or comma-separated), or select a <code>.csv</code> / <code>.txt</code> file. Existing duplicates will be identified and skipped.
+          </p>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Upload File (.csv, .txt):</label>
+            <input type="file" id="itemImportFile" accept=".csv, .txt" class="search-input" style="padding:6px; width:100%; box-sizing:border-box;">
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Or Paste Names / CSV:</label>
+            <textarea id="itemImportText" class="import-textarea" placeholder="Grilled Salmon&#10;Beef Burger&#10;Caesar Salad&#10;Garlic Bread"></textarea>
+          </div>
+
+          <div id="itemImportPreview" style="display:none; margin-top:8px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-cancel>Cancel</button>
+          <button class="btn btn-primary" type="button" id="itemImportSubmitBtn" disabled>
+            <i class="fa-solid fa-cloud-arrow-up"></i> Import
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-cancel]').onclick = close;
+
+    const fileInput = backdrop.querySelector('#itemImportFile');
+    const textarea = backdrop.querySelector('#itemImportText');
+    const previewBox = backdrop.querySelector('#itemImportPreview');
+    const submitBtn = backdrop.querySelector('#itemImportSubmitBtn');
+
+    let parsedList = [];
+
+    function updatePreview() {
+      const text = textarea.value || '';
+      const rawLines = text.split(/[\r\n]+/);
+      const items = [];
+      rawLines.forEach(line => {
+        if (line.includes(',')) {
+          line.split(',').forEach(part => {
+            const trimmed = part.trim();
+            if (trimmed) items.push(trimmed);
+          });
+        } else {
+          const trimmed = line.trim();
+          if (trimmed) items.push(trimmed);
+        }
+      });
+
+      // Filter out header row
+      let cleanItems = items.filter(it => {
+        const low = it.toLowerCase();
+        return low !== 'items name' && low !== 'item name' && low !== 'item' && low !== 'name';
+      });
+
+      const existingNames = new Set(records.map(r => String(r['Items Name'] || '').trim().toLowerCase()));
+      const uniqueNew = [];
+      const dupCount = { existing: 0, internal: 0 };
+      const seenThisBatch = new Set();
+
+      cleanItems.forEach(name => {
+        const lower = name.toLowerCase();
+        if (seenThisBatch.has(lower)) {
+          dupCount.internal++;
+        } else if (existingNames.has(lower)) {
+          dupCount.existing++;
+        } else {
+          seenThisBatch.add(lower);
+          uniqueNew.push(name);
+        }
+      });
+
+      parsedList = uniqueNew;
+
+      if (cleanItems.length === 0) {
+        previewBox.style.display = 'none';
+        previewBox.innerHTML = '';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Import';
+        return;
+      }
+
+      previewBox.style.display = 'block';
+      let html = `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">`;
+      html += `<span class="import-preview-badge new"><i class="fa-solid fa-circle-check"></i> ${uniqueNew.length} New to add</span>`;
+      if (dupCount.existing > 0) {
+        html += `<span class="import-preview-badge duplicate"><i class="fa-solid fa-triangle-exclamation"></i> ${dupCount.existing} Already exist (skipped)</span>`;
+      }
+      if (dupCount.internal > 0) {
+        html += `<span class="import-preview-badge duplicate"><i class="fa-solid fa-copy"></i> ${dupCount.internal} Duplicate in input (skipped)</span>`;
+      }
+      html += `</div>`;
+
+      if (uniqueNew.length > 0) {
+        const previewList = uniqueNew.slice(0, 6).join(', ') + (uniqueNew.length > 6 ? `, ... and ${uniqueNew.length - 6} more` : '');
+        html += `<div style="font-size:12px; color:var(--text); line-height:1.4;"><strong>Preview:</strong> ${App.esc(previewList)}</div>`;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Import ${uniqueNew.length} Item${uniqueNew.length === 1 ? '' : 's'}`;
+      } else {
+        html += `<div style="font-size:12px; color:var(--danger);"><i class="fa-solid fa-circle-exclamation"></i> All entered items already exist or are duplicates. Nothing new to import.</div>`;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Nothing to Import';
+      }
+
+      previewBox.innerHTML = html;
+    }
+
+    textarea.oninput = updatePreview;
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        textarea.value = evt.target.result;
+        updatePreview();
+      };
+      reader.readAsText(file);
+    };
+
+    submitBtn.onclick = () => {
+      if (parsedList.length === 0) return;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importing...';
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          const importedCount = (res && typeof res.imported === 'number') ? res.imported : parsedList.length;
+          App.toast(`Successfully imported ${importedCount} item${importedCount === 1 ? '' : 's'}${res && res.skipped ? ` (${res.skipped} skipped)` : ''}.`);
+          close();
+          load();
+          if (typeof refreshNotifications === 'function') refreshNotifications();
+        })
+        .withFailureHandler((err) => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Import ${parsedList.length} Items`;
+          App.toast(err.message, 'error');
+        })
+        .importItems(parsedList);
+    };
   }
 
   function remove(id) {
@@ -323,7 +636,12 @@ Pages.items = (function () {
     }
     if (!window.confirm('Delete this item?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Item deleted'); load(); refreshNotifications(); })
+      .withSuccessHandler(() => {
+        selectedIds.delete(String(id));
+        App.toast('Item deleted');
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteItem(id);
   }

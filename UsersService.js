@@ -181,6 +181,19 @@ function deleteUser(id) {
   return deleteRow_(USERS_SHEET, USERS_ID, id);
 }
 
+function deleteUsersBulk(ids) {
+  requirePermission_('users.delete');
+  if (!Array.isArray(ids) || ids.length === 0) return { success: true, count: 0 };
+  let count = 0;
+  ids.forEach(id => {
+    try {
+      deleteUser(id);
+      count++;
+    } catch (e) {}
+  });
+  return { success: true, count: count };
+}
+
 function ensureDefaultAdmin_() {
   const rows = readAll_(USERS_SHEET) || [];
   const existingAdmin = rows.find(r => normalizeUsername_(r.username) === 'admin');

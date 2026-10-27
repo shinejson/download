@@ -1,9 +1,14 @@
 <div class="card">
   <div class="card-header-bar">
     <h3><i class="fa-solid fa-layer-group"></i> Categories</h3>
-    <button class="btn btn-primary" id="categoriesAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Category
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-secondary" id="categoriesImportBtn" type="button">
+        <i class="fa-solid fa-file-import"></i> Import Categories
+      </button>
+      <button class="btn btn-primary" id="categoriesAddBtn" type="button">
+        <i class="fa-solid fa-plus"></i> Add Category
+      </button>
+    </div>
   </div>
 
   <div class="advanced-filter-bar">
@@ -42,6 +47,8 @@
       </button>
     </div>
   </div>
+
+  <div id="categoriesBulkBar" class="bulk-action-bar" style="display:none;"></div>
 
   <div id="categoriesTableWrap">
     <div class="loading"><div class="spinner"></div>Loading categories...</div>

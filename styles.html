@@ -2105,6 +2105,105 @@
     flex-wrap: wrap;
   }
 
+  /* ===== Bulk Actions & Selection ===== */
+  .bulk-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+    animation: fadeIn 0.15s ease-in-out;
+  }
+  .bulk-action-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1e40af;
+  }
+  .bulk-action-btns {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .table-checkbox {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--primary);
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .th-checkbox {
+    width: 40px !important;
+    text-align: center !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  /* ===== Import Modal Styles ===== */
+  .import-dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 24px 20px;
+    text-align: center;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 14px;
+  }
+  .import-dropzone:hover {
+    border-color: var(--primary);
+    background: #f1f5f9;
+  }
+  .import-textarea {
+    width: 100%;
+    min-height: 110px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 13px;
+    margin-bottom: 12px;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .import-textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  }
+  .import-preview-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .import-preview-badge.new {
+    background: #dcfce7;
+    color: #15803d;
+  }
+  .import-preview-badge.duplicate {
+    background: #fef3c7;
+    color: #b45309;
+  }
+  .import-preview-box {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 10px;
+    background: #ffffff;
+  }
+
   /* Print Media Styles - Engineered to fit exactly on ONE A4 Sheet */
   @media print {
     @page {

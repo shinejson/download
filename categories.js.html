@@ -7,23 +7,30 @@ Pages.categories = (function () {
   let searchQuery = '';
   let lengthFilter = 'all';
   let sortOrder = 'name_asc';
+  let selectedIds = new Set();
 
   function ensurePageMarkup() {
     const pageEl = document.getElementById('page-categories');
     if (!pageEl) return;
 
     const addBtn = document.getElementById('categoriesAddBtn');
+    const importBtn = document.getElementById('categoriesImportBtn');
     const wrap = document.getElementById('categoriesTableWrap');
     const searchInput = document.getElementById('categoriesSearchInput');
 
-    if (!addBtn || !wrap || !searchInput) {
+    if (!addBtn || !importBtn || !wrap || !searchInput) {
       pageEl.innerHTML = `
 <div class="card">
   <div class="card-header-bar">
     <h3><i class="fa-solid fa-layer-group"></i> Categories</h3>
-    <button class="btn btn-primary" id="categoriesAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Category
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-secondary" id="categoriesImportBtn" type="button">
+        <i class="fa-solid fa-file-import"></i> Import Categories
+      </button>
+      <button class="btn btn-primary" id="categoriesAddBtn" type="button">
+        <i class="fa-solid fa-plus"></i> Add Category
+      </button>
+    </div>
   </div>
 
   <div class="advanced-filter-bar">
@@ -63,6 +70,8 @@ Pages.categories = (function () {
     </div>
   </div>
 
+  <div id="categoriesBulkBar" class="bulk-action-bar" style="display:none;"></div>
+
   <div id="categoriesTableWrap">
     <div class="loading"><div class="spinner"></div>Loading categories...</div>
   </div>
@@ -74,6 +83,9 @@ Pages.categories = (function () {
   function bindEvents() {
     const addBtn = document.getElementById('categoriesAddBtn');
     if (addBtn) addBtn.onclick = () => openForm();
+
+    const importBtn = document.getElementById('categoriesImportBtn');
+    if (importBtn) importBtn.onclick = () => openImportModal();
 
     const searchInput = document.getElementById('categoriesSearchInput');
     const clearBtn = document.getElementById('categoriesSearchClearBtn');
@@ -146,6 +158,71 @@ Pages.categories = (function () {
     if (addBtn) {
       addBtn.style.display = App.can('categories.create') ? '' : 'none';
     }
+    const importBtn = document.getElementById('categoriesImportBtn');
+    if (importBtn) {
+      importBtn.style.display = App.can('categories.create') ? '' : 'none';
+    }
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('categoriesBulkBar');
+    if (!bar) return;
+    const canDel = App.can('categories.delete');
+    if (selectedIds.size === 0 || !canDel) {
+      bar.style.display = 'none';
+      bar.innerHTML = '';
+      return;
+    }
+    bar.style.display = 'flex';
+    const count = selectedIds.size;
+    bar.innerHTML = `
+      <div class="bulk-action-info">
+        <i class="fa-solid fa-circle-check"></i>
+        <span><strong>${count}</strong> categor${count === 1 ? 'y' : 'ies'} selected</span>
+      </div>
+      <div class="bulk-action-btns">
+        <button type="button" class="btn btn-danger btn-sm" id="categoriesBulkDeleteBtn">
+          <i class="fa-solid fa-trash-can"></i> Delete Selected (${count})
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="categoriesBulkClearBtn">
+          <i class="fa-solid fa-xmark"></i> Deselect All
+        </button>
+      </div>
+    `;
+    const delBtn = document.getElementById('categoriesBulkDeleteBtn');
+    if (delBtn) delBtn.onclick = () => removeBulk();
+    const clearBtn = document.getElementById('categoriesBulkClearBtn');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        selectedIds.clear();
+        render();
+      };
+    }
+  }
+
+  function removeBulk() {
+    if (!App.can('categories.delete')) {
+      App.toast('Permission denied: You cannot delete categories.', 'error');
+      return;
+    }
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${count} selected categor${count === 1 ? 'y' : 'ies'}? This action cannot be undone.`)) {
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    App.toast(`Deleting ${count} categor${count === 1 ? 'y' : 'ies'}...`, 'info');
+    google.script.run
+      .withSuccessHandler((res) => {
+        selectedIds.clear();
+        const deletedCount = (res && typeof res.count === 'number') ? res.count : count;
+        App.toast(`Successfully deleted ${deletedCount} categor${deletedCount === 1 ? 'y' : 'ies'}.`);
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteCategoriesBulk(ids);
   }
 
   function onShow() {
@@ -173,7 +250,15 @@ Pages.categories = (function () {
     if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading categories...</div>';
     google.script.run
-      .withSuccessHandler(data => { records = data || []; render(); })
+      .withSuccessHandler(data => {
+        records = data || [];
+        // Prune selected IDs that no longer exist
+        const validIds = new Set(records.map(r => String(r['ID'])));
+        selectedIds.forEach(id => {
+          if (!validIds.has(id)) selectedIds.delete(id);
+        });
+        render();
+      })
       .withFailureHandler(err => {
         if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
@@ -234,9 +319,19 @@ Pages.categories = (function () {
     const canDelete = App.can('categories.delete');
     const hasActions = canEdit || canDelete;
 
-    const headers = hasActions
-      ? ['ID', 'Category Name', 'Actions']
-      : ['ID', 'Category Name'];
+    const startIdx = (page - 1) * pageSize;
+    const pageRows = filtered.slice(startIdx, startIdx + pageSize);
+    const allPageSelected = pageRows.length > 0 && pageRows.every(r => selectedIds.has(String(r['ID'])));
+
+    const headers = [];
+    if (canDelete) {
+      headers.push({
+        html: `<input type="checkbox" class="table-checkbox" id="categoriesSelectAll" title="Select all on this page" ${allPageSelected ? 'checked' : ''}>`,
+        className: 'th-checkbox'
+      });
+    }
+    headers.push('ID', 'Category Name');
+    if (hasActions) headers.push('Actions');
 
     App.renderPaginatedTable({
       container: wrap,
@@ -256,18 +351,50 @@ Pages.categories = (function () {
         page = 1;
         render();
       },
-      rowRenderer: (r) => `
-        <tr>
-          <td><code>${App.esc(r['ID'])}</code></td>
+      rowRenderer: (r) => {
+        const idStr = String(r['ID']);
+        const isSelected = selectedIds.has(idStr);
+        return `
+        <tr class="${isSelected ? 'row-selected' : ''}">
+          ${canDelete ? `
+            <td class="th-checkbox" style="text-align:center;">
+              <input type="checkbox" class="table-checkbox row-select-checkbox" data-select-id="${App.esc(idStr)}" ${isSelected ? 'checked' : ''}>
+            </td>
+          ` : ''}
+          <td><code>${App.esc(idStr)}</code></td>
           <td><strong>${App.esc(r['Categories name'])}</strong></td>
           ${hasActions ? `
             <td class="actions-cell">
-              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r['ID'])}" title="Edit category"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
-              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r['ID'])}" title="Delete category"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
+              ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(idStr)}" title="Edit category"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+              ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(idStr)}" title="Delete category"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
             </td>
           ` : ''}
         </tr>
-      `
+      `;
+      }
+    });
+
+    // Checkbox event listeners
+    const selectAllEl = wrap.querySelector('#categoriesSelectAll');
+    if (selectAllEl) {
+      selectAllEl.onchange = (e) => {
+        const checked = e.target.checked;
+        pageRows.forEach(r => {
+          const id = String(r['ID']);
+          if (checked) selectedIds.add(id);
+          else selectedIds.delete(id);
+        });
+        render();
+      };
+    }
+
+    wrap.querySelectorAll('.row-select-checkbox').forEach(cb => {
+      cb.onchange = (e) => {
+        const id = e.target.dataset.selectId;
+        if (e.target.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+        render();
+      };
     });
 
     if (canEdit) {
@@ -281,6 +408,8 @@ Pages.categories = (function () {
         b.onclick = () => remove(b.dataset.del);
       });
     }
+
+    updateBulkBar();
   }
 
   function openForm(record) {
@@ -297,23 +426,207 @@ Pages.categories = (function () {
     App.openModal({
       title: isEdit ? 'Edit Category' : 'New Category',
       fields: [
-        { name: 'Categories name', label: 'Categories name', value: record ? record['Categories name'] : '' }
+        { name: 'Categories name', label: 'Category Name', value: record ? record['Categories name'] : '' }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data['Categories name']) return reject(new Error('Name is required'));
+        const nameVal = (data['Categories name'] || '').trim();
+        if (!nameVal) return reject(new Error('Category name is required.'));
+
+        // Client-side duplicate validation
+        const isDup = records.some(r => {
+          if (isEdit && String(r['ID']) === String(record['ID'])) return false;
+          return String(r['Categories name'] || '').trim().toLowerCase() === nameVal.toLowerCase();
+        });
+        if (isDup) {
+          return reject(new Error(`A category named "${nameVal}" already exists.`));
+        }
+
+        const payload = { 'Categories name': nameVal };
+
         if (isEdit) {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Category updated'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('Category updated');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
-            .updateCategory(record['ID'], data);
+            .updateCategory(record['ID'], payload);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('Category created'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('Category created');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
-            .createCategory(data);
+            .createCategory(payload);
         }
       })
     });
+  }
+
+  function openImportModal() {
+    if (!App.can('categories.create')) {
+      App.toast('Permission denied: You cannot create categories.', 'error');
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop show';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-file-import"></i> Import Categories</h3>
+          <button class="modal-close" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-top:0; font-size:13px; color:var(--text-muted); line-height:1.4;">
+            Paste category names (one per line or comma-separated), or select a <code>.csv</code> / <code>.txt</code> file. Existing duplicates will be identified and skipped.
+          </p>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Upload File (.csv, .txt):</label>
+            <input type="file" id="catImportFile" accept=".csv, .txt" class="search-input" style="padding:6px; width:100%; box-sizing:border-box;">
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Or Paste Names / CSV:</label>
+            <textarea id="catImportText" class="import-textarea" placeholder="Appetizers&#10;Main Course&#10;Desserts&#10;Beverages"></textarea>
+          </div>
+
+          <div id="catImportPreview" style="display:none; margin-top:8px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-cancel>Cancel</button>
+          <button class="btn btn-primary" type="button" id="catImportSubmitBtn" disabled>
+            <i class="fa-solid fa-cloud-arrow-up"></i> Import
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    function close() { backdrop.remove(); }
+    backdrop.querySelector('.modal-close').onclick = close;
+    backdrop.querySelector('[data-cancel]').onclick = close;
+
+    const fileInput = backdrop.querySelector('#catImportFile');
+    const textarea = backdrop.querySelector('#catImportText');
+    const previewBox = backdrop.querySelector('#catImportPreview');
+    const submitBtn = backdrop.querySelector('#catImportSubmitBtn');
+
+    let parsedList = [];
+
+    function updatePreview() {
+      const text = textarea.value || '';
+      const rawLines = text.split(/[\r\n]+/);
+      const items = [];
+      rawLines.forEach(line => {
+        if (line.includes(',')) {
+          line.split(',').forEach(part => {
+            const trimmed = part.trim();
+            if (trimmed) items.push(trimmed);
+          });
+        } else {
+          const trimmed = line.trim();
+          if (trimmed) items.push(trimmed);
+        }
+      });
+
+      // Filter out header row
+      let cleanItems = items.filter(it => {
+        const low = it.toLowerCase();
+        return low !== 'categories name' && low !== 'category name' && low !== 'category' && low !== 'name';
+      });
+
+      const existingNames = new Set(records.map(r => String(r['Categories name'] || '').trim().toLowerCase()));
+      const uniqueNew = [];
+      const dupCount = { existing: 0, internal: 0 };
+      const seenThisBatch = new Set();
+
+      cleanItems.forEach(name => {
+        const lower = name.toLowerCase();
+        if (seenThisBatch.has(lower)) {
+          dupCount.internal++;
+        } else if (existingNames.has(lower)) {
+          dupCount.existing++;
+        } else {
+          seenThisBatch.add(lower);
+          uniqueNew.push(name);
+        }
+      });
+
+      parsedList = uniqueNew;
+
+      if (cleanItems.length === 0) {
+        previewBox.style.display = 'none';
+        previewBox.innerHTML = '';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Import';
+        return;
+      }
+
+      previewBox.style.display = 'block';
+      let html = `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">`;
+      html += `<span class="import-preview-badge new"><i class="fa-solid fa-circle-check"></i> ${uniqueNew.length} New to add</span>`;
+      if (dupCount.existing > 0) {
+        html += `<span class="import-preview-badge duplicate"><i class="fa-solid fa-triangle-exclamation"></i> ${dupCount.existing} Already exist (skipped)</span>`;
+      }
+      if (dupCount.internal > 0) {
+        html += `<span class="import-preview-badge duplicate"><i class="fa-solid fa-copy"></i> ${dupCount.internal} Duplicate in input (skipped)</span>`;
+      }
+      html += `</div>`;
+
+      if (uniqueNew.length > 0) {
+        const previewList = uniqueNew.slice(0, 6).join(', ') + (uniqueNew.length > 6 ? `, ... and ${uniqueNew.length - 6} more` : '');
+        html += `<div style="font-size:12px; color:var(--text); line-height:1.4;"><strong>Preview:</strong> ${App.esc(previewList)}</div>`;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Import ${uniqueNew.length} Categor${uniqueNew.length === 1 ? 'y' : 'ies'}`;
+      } else {
+        html += `<div style="font-size:12px; color:var(--danger);"><i class="fa-solid fa-circle-exclamation"></i> All entered categories already exist or are duplicates. Nothing new to import.</div>`;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Nothing to Import';
+      }
+
+      previewBox.innerHTML = html;
+    }
+
+    textarea.oninput = updatePreview;
+
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        textarea.value = evt.target.result;
+        updatePreview();
+      };
+      reader.readAsText(file);
+    };
+
+    submitBtn.onclick = () => {
+      if (parsedList.length === 0) return;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importing...';
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          const importedCount = (res && typeof res.imported === 'number') ? res.imported : parsedList.length;
+          App.toast(`Successfully imported ${importedCount} categor${importedCount === 1 ? 'y' : 'ies'}${res && res.skipped ? ` (${res.skipped} skipped)` : ''}.`);
+          close();
+          load();
+          if (typeof refreshNotifications === 'function') refreshNotifications();
+        })
+        .withFailureHandler((err) => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Import ${parsedList.length} Categories`;
+          App.toast(err.message, 'error');
+        })
+        .importCategories(parsedList);
+    };
   }
 
   function remove(id) {
@@ -323,7 +636,12 @@ Pages.categories = (function () {
     }
     if (!window.confirm('Delete this category?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('Category deleted'); load(); refreshNotifications(); })
+      .withSuccessHandler(() => {
+        selectedIds.delete(String(id));
+        App.toast('Category deleted');
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteCategory(id);
   }

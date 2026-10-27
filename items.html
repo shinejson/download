@@ -1,9 +1,14 @@
 <div class="card">
   <div class="card-header-bar">
     <h3><i class="fa-solid fa-boxes-stacked"></i> Items Inventory</h3>
-    <button class="btn btn-primary" id="itemsAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Item
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-secondary" id="itemsImportBtn" type="button">
+        <i class="fa-solid fa-file-import"></i> Import Items
+      </button>
+      <button class="btn btn-primary" id="itemsAddBtn" type="button">
+        <i class="fa-solid fa-plus"></i> Add Item
+      </button>
+    </div>
   </div>
 
   <div class="advanced-filter-bar">
@@ -42,6 +47,8 @@
       </button>
     </div>
   </div>
+
+  <div id="itemsBulkBar" class="bulk-action-bar" style="display:none;"></div>
 
   <div id="itemsTableWrap">
     <div class="loading"><div class="spinner"></div>Loading items...</div>

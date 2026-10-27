@@ -722,10 +722,22 @@ var App = window.App = (function () {
         const input = form.querySelector(`[name="${f.name}"]`);
         if (input) data[f.name] = input.value;
       });
+      const saveBtn = backdrop.querySelector('[data-save]');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+      }
       Promise.resolve(opts.onSave(data))
-        .then(() => close())
+        .then(() => {
+          try { form.reset(); } catch (e) {}
+          close();
+        })
         .catch(err => {
-          App.toast(err.message || 'Error', 'error');
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Save';
+          }
+          App.toast(err && err.message ? err.message : 'Error', 'error');
           console.error(err);
         });
     };
@@ -766,7 +778,15 @@ var App = window.App = (function () {
       container.innerHTML = `<div class="empty-state">${esc(emptyMsg || 'No records found.')}</div>`;
       return;
     }
-    const thead = '<tr>' + headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>';
+    const thead = '<tr>' + headers.map(h => {
+      if (typeof h === 'object' && h && h.html) {
+        return `<th class="${h.className || ''}">${h.html}</th>`;
+      }
+      if (typeof h === 'string' && h.includes('<')) {
+        return `<th>${h}</th>`;
+      }
+      return `<th>${esc(h)}</th>`;
+    }).join('') + '</tr>';
     const tbody = rows.map((r, i) => rowRenderer(r, i)).join('');
     container.innerHTML = `<div class="table-responsive"><table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
   }
@@ -800,7 +820,15 @@ var App = window.App = (function () {
     const endIdx = Math.min(startIdx + pageSize, total);
     const pageRows = rows.slice(startIdx, endIdx);
 
-    const thead = '<tr>' + headers.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>';
+    const thead = '<tr>' + headers.map(h => {
+      if (typeof h === 'object' && h && h.html) {
+        return `<th class="${h.className || ''}">${h.html}</th>`;
+      }
+      if (typeof h === 'string' && h.includes('<')) {
+        return `<th>${h}</th>`;
+      }
+      return `<th>${esc(h)}</th>`;
+    }).join('') + '</tr>';
     const tbody = pageRows.map((r, i) => rowRenderer(r, startIdx + i)).join('');
 
     let pageNumbers = [];

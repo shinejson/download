@@ -8,6 +8,7 @@ Pages.users = (function () {
   let roleFilter = 'all';
   let statusFilter = 'all';
   let sortOrder = 'name_asc';
+  let selectedIds = new Set();
 
   function ensurePageMarkup() {
     const pageEl = document.getElementById('page-users');
@@ -76,6 +77,8 @@ Pages.users = (function () {
       </button>
     </div>
   </div>
+
+  <div id="usersBulkBar" class="bulk-action-bar" style="display:none;"></div>
 
   <div id="usersTableWrap">
     <div class="loading"><div class="spinner"></div>Loading users...</div>
@@ -171,6 +174,77 @@ Pages.users = (function () {
     if (addBtn) {
       addBtn.style.display = App.can('users.create') ? '' : 'none';
     }
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('usersBulkBar');
+    if (!bar) return;
+    const canDel = App.can('users.delete');
+    if (selectedIds.size === 0 || !canDel) {
+      bar.style.display = 'none';
+      bar.innerHTML = '';
+      return;
+    }
+    bar.style.display = 'flex';
+    const count = selectedIds.size;
+    bar.innerHTML = `
+      <div class="bulk-action-info">
+        <i class="fa-solid fa-circle-check"></i>
+        <span><strong>${count}</strong> user${count === 1 ? '' : 's'} selected</span>
+      </div>
+      <div class="bulk-action-btns">
+        <button type="button" class="btn btn-danger btn-sm" id="usersBulkDeleteBtn">
+          <i class="fa-solid fa-trash-can"></i> Delete Selected (${count})
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="usersBulkClearBtn">
+          <i class="fa-solid fa-xmark"></i> Deselect All
+        </button>
+      </div>
+    `;
+    const delBtn = document.getElementById('usersBulkDeleteBtn');
+    if (delBtn) delBtn.onclick = () => removeBulk();
+    const clearBtn = document.getElementById('usersBulkClearBtn');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        selectedIds.clear();
+        render();
+      };
+    }
+  }
+
+  function removeBulk() {
+    if (!App.can('users.delete')) {
+      App.toast('Permission denied: You cannot delete users.', 'error');
+      return;
+    }
+    const currentUsername = App.currentUser ? String(App.currentUser.username).toLowerCase() : '';
+    // Filter out current user from selection if any
+    const toDelete = Array.from(selectedIds).filter(id => {
+      const u = records.find(x => String(x.userid) === id);
+      return !u || String(u.username || '').toLowerCase() !== currentUsername;
+    });
+
+    if (toDelete.length === 0) {
+      App.toast('No eligible users selected for deletion.', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${toDelete.length} selected user${toDelete.length === 1 ? '' : 's'}? This action cannot be undone.`)) {
+      return;
+    }
+
+    App.toast(`Deleting ${toDelete.length} user${toDelete.length === 1 ? '' : 's'}...`, 'info');
+    google.script.run
+      .withSuccessHandler((res) => {
+        selectedIds.clear();
+        const deletedCount = (res && typeof res.count === 'number') ? res.count : toDelete.length;
+        App.toast(`Successfully deleted ${deletedCount} user${deletedCount === 1 ? '' : 's'}.`);
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteUsersBulk(toDelete);
   }
 
   function onShow() {
@@ -198,7 +272,14 @@ Pages.users = (function () {
     if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading users...</div>';
     google.script.run
-      .withSuccessHandler(data => { records = data || []; render(); })
+      .withSuccessHandler(data => {
+        records = data || [];
+        const validIds = new Set(records.map(r => String(r.userid)));
+        selectedIds.forEach(id => {
+          if (!validIds.has(id)) selectedIds.delete(id);
+        });
+        render();
+      })
       .withFailureHandler(err => {
         if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
@@ -266,6 +347,7 @@ Pages.users = (function () {
   }
 
   function render() {
+    updateControls();
     const wrap = getTableWrap();
     if (!wrap) return;
 
@@ -275,9 +357,20 @@ Pages.users = (function () {
     const hasActions = canEdit || canDelete;
     const currentUsername = App.currentUser ? String(App.currentUser.username).toLowerCase() : '';
 
-    const headers = hasActions
-      ? ['User ID', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status', 'Actions']
-      : ['User ID', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status'];
+    const startIdx = (page - 1) * pageSize;
+    const pageRows = filtered.slice(startIdx, startIdx + pageSize);
+    const eligiblePageRows = pageRows.filter(r => String(r.username || '').toLowerCase() !== currentUsername);
+    const allPageSelected = eligiblePageRows.length > 0 && eligiblePageRows.every(r => selectedIds.has(String(r.userid)));
+
+    const headers = [];
+    if (canDelete) {
+      headers.push({
+        html: `<input type="checkbox" class="table-checkbox" id="usersSelectAll" title="Select all eligible on this page" ${allPageSelected ? 'checked' : ''}>`,
+        className: 'th-checkbox'
+      });
+    }
+    headers.push('User ID', 'Name', 'Contact', 'Email', 'Username', 'Role', 'Department', 'Status');
+    if (hasActions) headers.push('Actions');
 
     App.renderPaginatedTable({
       container: wrap,
@@ -298,10 +391,22 @@ Pages.users = (function () {
         render();
       },
       rowRenderer: (r) => {
+        const idStr = String(r.userid);
         const isSelf = String(r.username || '').toLowerCase() === currentUsername;
+        const isSelected = selectedIds.has(idStr);
+
         return `
-          <tr>
-            <td><code>${App.esc(r.userid)}</code></td>
+          <tr class="${isSelected ? 'row-selected' : ''}">
+            ${canDelete ? `
+              <td class="th-checkbox" style="text-align:center;">
+                ${isSelf ? `
+                  <input type="checkbox" class="table-checkbox" disabled title="You cannot select your own account" style="opacity:0.35; cursor:not-allowed;">
+                ` : `
+                  <input type="checkbox" class="table-checkbox row-select-checkbox" data-select-id="${App.esc(idStr)}" ${isSelected ? 'checked' : ''}>
+                `}
+              </td>
+            ` : ''}
+            <td><code>${App.esc(idStr)}</code></td>
             <td><strong>${App.esc(r.firstname)} ${App.esc(r.lastname)}</strong></td>
             <td>${App.esc(r.contact || '—')}</td>
             <td>${App.esc(r.email || '—')}</td>
@@ -311,14 +416,36 @@ Pages.users = (function () {
             <td>${statusBadge(r.status)}</td>
             ${hasActions ? `
               <td class="actions-cell">
-                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.userid)}" title="Edit user"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
-                ${(canDelete && !isSelf) ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.userid)}" title="Delete user"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
+                ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(idStr)}" title="Edit user"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
+                ${(canDelete && !isSelf) ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(idStr)}" title="Delete user"><i class="fa-solid fa-trash-can"></i> Delete</button>` : ''}
                 ${(canDelete && isSelf) ? `<button class="btn btn-secondary btn-sm" disabled title="You cannot delete your own account" style="opacity:0.5;cursor:not-allowed;">Self</button>` : ''}
               </td>
             ` : ''}
           </tr>
         `;
       }
+    });
+
+    const selectAllEl = wrap.querySelector('#usersSelectAll');
+    if (selectAllEl) {
+      selectAllEl.onchange = (e) => {
+        const checked = e.target.checked;
+        eligiblePageRows.forEach(r => {
+          const id = String(r.userid);
+          if (checked) selectedIds.add(id);
+          else selectedIds.delete(id);
+        });
+        render();
+      };
+    }
+
+    wrap.querySelectorAll('.row-select-checkbox').forEach(cb => {
+      cb.onchange = (e) => {
+        const id = e.target.dataset.selectId;
+        if (e.target.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+        render();
+      };
     });
 
     if (canEdit) {
@@ -332,6 +459,8 @@ Pages.users = (function () {
         b.onclick = () => remove(b.dataset.del);
       });
     }
+
+    updateBulkBar();
   }
 
   function roleBadge(r) {
@@ -393,16 +522,37 @@ Pages.users = (function () {
         }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data.username) return reject(new Error('Username is required'));
+        const usernameVal = (data.username || '').trim();
+        if (!usernameVal) return reject(new Error('Username is required.'));
+
+        // Client-side duplicate check
+        const isDup = records.some(r => {
+          if (isEdit && String(r.userid) === String(record.userid)) return false;
+          return String(r.username || '').trim().toLowerCase() === usernameVal.toLowerCase();
+        });
+        if (isDup) {
+          return reject(new Error(`A user with username "${usernameVal}" already exists.`));
+        }
+
         if (isEdit) {
           if (!data.password) delete data.password;
           google.script.run
-            .withSuccessHandler(() => { App.toast('User updated'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('User updated');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
             .updateUser(record.userid, data);
         } else {
           google.script.run
-            .withSuccessHandler(() => { App.toast('User created'); load(); refreshNotifications(); })
+            .withSuccessHandler((res) => {
+              App.toast('User created');
+              load();
+              if (typeof refreshNotifications === 'function') refreshNotifications();
+              resolve(res);
+            })
             .withFailureHandler(reject)
             .createUser(data);
         }
@@ -417,7 +567,12 @@ Pages.users = (function () {
     }
     if (!window.confirm('Delete this user?')) return;
     google.script.run
-      .withSuccessHandler(() => { App.toast('User deleted'); load(); refreshNotifications(); })
+      .withSuccessHandler(() => {
+        selectedIds.delete(String(id));
+        App.toast('User deleted');
+        load();
+        if (typeof refreshNotifications === 'function') refreshNotifications();
+      })
       .withFailureHandler(err => App.toast(err.message, 'error'))
       .deleteUser(id);
   }
