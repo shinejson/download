@@ -20,7 +20,7 @@
         <span class="btn-icon">↻</span>
         <span class="btn-label">Refresh Data</span>
       </button>
-      <a href="#menu" class="btn btn-primary btn-sm quick-action-btn" id="quickAddConference" title="Schedule a new conference">
+      <a href="#menu" data-page="menu" class="btn btn-primary btn-sm quick-action-btn" id="quickAddConference" title="Schedule a new conference">
         <span class="btn-icon">+</span>
         <span class="btn-label">Schedule Event</span>
       </a>
@@ -30,7 +30,7 @@
   <!-- Executive KPI Metrics Grid -->
   <div class="stat-grid" role="region" aria-label="Key Performance Indicators">
     <!-- Categories Card -->
-    <article class="stat-card stat-card-primary" aria-labelledby="stat-cat-label">
+    <article class="stat-card stat-card-primary" data-page="categories" aria-labelledby="stat-cat-label" title="View Categories">
       <div class="stat-card-inner">
         <div class="stat-header">
           <div class="stat-icon-wrap stat-icon-primary">🗂️</div>
@@ -44,13 +44,13 @@
         </div>
         <div class="stat-footer">
           <span class="stat-delta stat-delta-neutral">Inventory segments</span>
-          <a href="#categories" class="stat-link" title="Jump to Categories manager">Manage &rarr;</a>
+          <a href="#categories" data-page="categories" class="stat-link" title="Jump to Categories manager">Manage &rarr;</a>
         </div>
       </div>
     </article>
 
     <!-- Items Card -->
-    <article class="stat-card stat-card-info" aria-labelledby="stat-items-label">
+    <article class="stat-card stat-card-info" data-page="items" aria-labelledby="stat-items-label" title="View Items Catalog">
       <div class="stat-card-inner">
         <div class="stat-header">
           <div class="stat-icon-wrap stat-icon-info">📦</div>
@@ -64,13 +64,13 @@
         </div>
         <div class="stat-footer">
           <span class="stat-delta stat-delta-neutral">Catalogued items</span>
-          <a href="#items" class="stat-link" title="Jump to Items manager">View all &rarr;</a>
+          <a href="#items" data-page="items" class="stat-link" title="Jump to Items manager">View all &rarr;</a>
         </div>
       </div>
     </article>
 
     <!-- Upcoming Conferences Card -->
-    <article class="stat-card stat-card-success" aria-labelledby="stat-conf-label">
+    <article class="stat-card stat-card-success" data-page="menu" aria-labelledby="stat-conf-label" title="View Conferences & Events">
       <div class="stat-card-inner">
         <div class="stat-header">
           <div class="stat-icon-wrap stat-icon-success">📅</div>
@@ -84,13 +84,13 @@
         </div>
         <div class="stat-footer">
           <span class="stat-delta stat-delta-neutral">Scheduled & confirmed</span>
-          <a href="#menu" class="stat-link" title="Jump to Conference Menu">Schedule &rarr;</a>
+          <a href="#menu" data-page="menu" class="stat-link" title="Jump to Conference Menu">Schedule &rarr;</a>
         </div>
       </div>
     </article>
 
     <!-- Users Card (Protected by users.view RBAC) -->
-    <article class="stat-card stat-card-warning" aria-labelledby="stat-users-label">
+    <article class="stat-card stat-card-warning" data-page="users" aria-labelledby="stat-users-label" title="View System Accounts">
       <div class="stat-card-inner">
         <div class="stat-header">
           <div class="stat-icon-wrap stat-icon-warning">👥</div>
@@ -104,7 +104,7 @@
         </div>
         <div class="stat-footer">
           <span class="stat-delta stat-delta-neutral">Authorized personnel</span>
-          <a href="#users" class="stat-link" title="Jump to User Administration">Administer &rarr;</a>
+          <a href="#users" data-page="users" class="stat-link" title="Jump to User Administration">Administer &rarr;</a>
         </div>
       </div>
     </article>

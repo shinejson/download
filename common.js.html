@@ -594,6 +594,21 @@ var App = window.App = (function () {
       });
     });
 
+    // Global delegated navigation handler: catches ALL internal links, card links, and data-page elements
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a[href^="#"], a[data-page], [data-page], [data-navigate]');
+      if (!link) return;
+      if (link.dataset.action) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      const targetPage = link.dataset.page || link.dataset.navigate || (link.getAttribute('href') || '').replace(/^#/, '');
+      if (targetPage && ROUTES.includes(targetPage)) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(targetPage);
+      }
+    });
+
     document.querySelectorAll('.nav-link').forEach(a => {
       a.addEventListener('click', (e) => {
         if (a.dataset.action) return;
@@ -1081,6 +1096,7 @@ var App = window.App = (function () {
     isStrongPassword,
     logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser, loadBrandSettings, applyBrandSettings,
     getBrandSettings: () => currentBrandSettings,
+    getStoredAuth,
     can, canView, applyRolePermissions,
     loadNotifications, refreshNotifications,
     get currentUser() { return currentUser; },

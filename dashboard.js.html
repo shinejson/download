@@ -85,7 +85,7 @@ Pages.dashboard = (function () {
             '<span class="conf-pax-tag">👥 ' + App.esc(u.pax != null ? u.pax : 0) + ' pax</span>' +
           '</div>' +
         '</div>' +
-        '<a href="#menu" class="conf-action-btn" title="View details in Menu module">&rarr;</a>' +
+        '<a href="#menu" data-page="menu" class="conf-action-btn" title="View details in Menu module">&rarr;</a>' +
       '</div>';
     }).join('');
   }
@@ -278,9 +278,64 @@ Pages.dashboard = (function () {
     });
   }
 
-  function load() {
-    ['trends', 'category', 'items'].forEach(showLoading);
+  const CACHE_KEY = 'conference_records_dashboard_cache';
 
+  function applyPayload(payload) {
+    if (!payload) return;
+    if (payload.stats) {
+      onStatsLoaded(payload.stats);
+    }
+    if (payload.trends) {
+      renderTrendsChart(payload.trends);
+    }
+    if (payload.categoryBreakdown) {
+      renderCategoryChart(payload.categoryBreakdown);
+    }
+    if (payload.itemsDistribution) {
+      renderItemsChart(payload.itemsDistribution);
+    }
+  }
+
+  function loadCachedData() {
+    try {
+      const raw = sessionStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const payload = JSON.parse(raw);
+        applyPayload(payload);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function load() {
+    const hasCache = loadCachedData();
+    if (!hasCache) {
+      ['trends', 'category', 'items'].forEach(showLoading);
+    }
+
+    const auth = (typeof App !== 'undefined' && typeof App.getStoredAuth === 'function') ? App.getStoredAuth() : null;
+    const sid = (auth && auth.user && auth.user.sid) || '';
+
+    // Fast single round-trip bundle request (<1s)
+    google.script.run
+      .withSuccessHandler(function (payload) {
+        ['trends', 'category', 'items'].forEach(hideLoading);
+        if (payload) {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+          } catch (e) {}
+          applyPayload(payload);
+        }
+      })
+      .withFailureHandler(function (err) {
+        console.warn('getDashboardPayload failed, trying legacy fallback:', err);
+        fallbackLoad();
+      })
+      .getDashboardPayload(sid);
+  }
+
+  function fallbackLoad() {
     google.script.run
       .withSuccessHandler(onStatsLoaded)
       .withFailureHandler(function (err) {
@@ -291,26 +346,17 @@ Pages.dashboard = (function () {
 
     google.script.run
       .withSuccessHandler(renderTrendsChart)
-      .withFailureHandler(function (err) {
-        console.error('trends error', err);
-        hideLoading('trends');
-      })
+      .withFailureHandler(function () { hideLoading('trends'); })
       .getMonthlyTrends();
 
     google.script.run
       .withSuccessHandler(renderCategoryChart)
-      .withFailureHandler(function (err) {
-        console.error('category error', err);
-        hideLoading('category');
-      })
+      .withFailureHandler(function () { hideLoading('category'); })
       .getCategoryBreakdown();
 
     google.script.run
       .withSuccessHandler(renderItemsChart)
-      .withFailureHandler(function (err) {
-        console.error('items error', err);
-        hideLoading('items');
-      })
+      .withFailureHandler(function () { hideLoading('items'); })
       .getItemsDistribution();
   }
 

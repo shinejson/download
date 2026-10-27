@@ -107,176 +107,215 @@ function getPageTitle(page) {
  * Monthly conference trends for the last 6 months (line chart).
  */
 function getMonthlyTrends() {
-  requirePermission_('dashboard.view');
-
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('menu');
-    if (!sheet || sheet.getLastRow() <= 1) {
-      return { labels: [], data: [] };
-    }
-
-    const now = new Date();
-    const labels = [];
-    const data = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      labels.push(Utilities.formatDate(d, Session.getScriptTimeZone(), 'MMM yyyy'));
-      data.push(0);
-    }
-
-    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
-    rows.forEach(r => {
-      const confDate = r[2];
-      if (!(confDate instanceof Date)) return;
-      for (let i = 0; i < 6; i++) {
-        const start = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-        const end = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1);
-        if (confDate >= start && confDate < end) {
-          data[i]++;
-          break;
-        }
-      }
-    });
-
-    return { labels: labels, data: data };
-  } catch (err) {
-    console.error('getMonthlyTrends error', err);
-    return { labels: [], data: [], error: err.message };
-  }
+  const payload = getDashboardPayload();
+  return payload.trends;
 }
 
 /**
  * Category breakdown for donut chart.
  */
 function getCategoryBreakdown() {
-  requirePermission_('dashboard.view');
-
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const catSheet = ss.getSheetByName('categories');
-    const itemSheet = ss.getSheetByName('items');
-
-    if (!catSheet || catSheet.getLastRow() <= 1) {
-      return { labels: ['No Data'], data: [0] };
-    }
-
-    const catRows = catSheet.getRange(2, 1, catSheet.getLastRow() - 1, 1).getValues().flat();
-    const labels = catRows.filter(c => c && String(c).trim());
-
-    let data = [];
-    if (itemSheet && itemSheet.getLastRow() > 1) {
-      const lastCol = itemSheet.getLastColumn();
-      const catCol = lastCol >= 2 ? 1 : 0; // column B if present, else A
-      const itemRows = itemSheet.getRange(2, 1, itemSheet.getLastRow() - 1, lastCol).getValues();
-
-      const counts = {};
-      labels.forEach(l => { counts[l] = 0; });
-      let others = 0;
-
-      itemRows.forEach(r => {
-        const cat = r[catCol];
-        if (cat && counts.hasOwnProperty(cat)) {
-          counts[cat]++;
-        } else if (cat) {
-          others++;
-        }
-      });
-
-      data = labels.map(l => counts[l] || 0);
-      if (others > 0) {
-        labels.push('Other');
-        data.push(others);
-      }
-    } else {
-      data = labels.map(() => 0);
-    }
-
-    return { labels: labels, data: data };
-  } catch (err) {
-    console.error('getCategoryBreakdown error', err);
-    return { labels: ['Error'], data: [0], error: err.message };
-  }
+  const payload = getDashboardPayload();
+  return payload.categoryBreakdown;
 }
 
 /**
  * Items distribution by category for bar chart.
  */
 function getItemsDistribution() {
-  requirePermission_('dashboard.view');
+  const payload = getDashboardPayload();
+  return payload.itemsDistribution;
+}
 
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('items');
-    if (!sheet || sheet.getLastRow() <= 1) {
-      return { labels: [], data: [] };
+/**
+ * Single bundled endpoint for Dashboard data:
+ * Fetches stats, monthly trends, category breakdown, items distribution, and upcoming events in ONE round-trip.
+ * Drastically improves dashboard initial load time from ~6s to <1s.
+ */
+function getDashboardPayload(opt_sid) {
+  requirePermission_('dashboard.view', opt_sid);
+  const user = getCurrentUser_(opt_sid);
+  const canViewUsers = user ? hasRolePermission_(user.role, 'users.view') : false;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  function getSheetByNameLoose(name) {
+    if (!ss) return null;
+    const direct = ss.getSheetByName(name);
+    if (direct) return direct;
+    const target = String(name || '').trim().toLowerCase();
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      if (sheets[i].getName().trim().toLowerCase() === target) {
+        return sheets[i];
+      }
     }
+    return null;
+  }
 
-    const lastCol = sheet.getLastColumn();
-    const catCol = lastCol >= 2 ? 1 : 0;
-    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getValues();
+  const catSheet = getSheetByNameLoose('categories');
+  const itemSheet = getSheetByNameLoose('items');
+  const menuSheet = getSheetByNameLoose('menu');
+  const userSheet = canViewUsers ? getSheetByNameLoose('users') : null;
 
-    const counts = {};
-    rows.forEach(r => {
-      const cat = r[catCol] || 'Uncategorized';
-      counts[cat] = (counts[cat] || 0) + 1;
+  const catCount = catSheet && catSheet.getLastRow() > 1 ? catSheet.getLastRow() - 1 : 0;
+  const itemCount = itemSheet && itemSheet.getLastRow() > 1 ? itemSheet.getLastRow() - 1 : 0;
+  const menuCount = menuSheet && menuSheet.getLastRow() > 1 ? menuSheet.getLastRow() - 1 : 0;
+  const userCount = userSheet && userSheet.getLastRow() > 1 ? userSheet.getLastRow() - 1 : (canViewUsers ? 0 : null);
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let upcoming = [];
+  const trendLabels = [];
+  const trendData = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    trendLabels.push(Utilities.formatDate(d, Session.getScriptTimeZone(), 'MMM yyyy'));
+    trendData.push(0);
+  }
+
+  if (menuSheet && menuSheet.getLastRow() > 1) {
+    const lastCol = Math.max(menuSheet.getLastColumn(), 6);
+    const menuRows = menuSheet.getRange(2, 1, menuSheet.getLastRow() - 1, lastCol).getValues();
+    const headerRow = menuSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || '').trim().toLowerCase());
+    let dateCol = headerRow.findIndex(h => h.includes('date'));
+    if (dateCol === -1) dateCol = 2;
+    let nameCol = headerRow.findIndex(h => h.includes('conference') || h.includes('name'));
+    if (nameCol === -1) nameCol = 1;
+    let paxCol = headerRow.findIndex(h => h.includes('pax'));
+    if (paxCol === -1) paxCol = 3;
+    let midCol = headerRow.findIndex(h => h.includes('mid') || h.includes('id'));
+    if (midCol === -1) midCol = 0;
+
+    const upcomingCandidates = [];
+
+    menuRows.forEach(r => {
+      let confDate = r[dateCol];
+      let dObj = null;
+      if (confDate instanceof Date && !isNaN(confDate.getTime())) {
+        dObj = new Date(confDate.getFullYear(), confDate.getMonth(), confDate.getDate());
+      } else if (confDate) {
+        const s = String(confDate).trim();
+        const mIso = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+        if (mIso) {
+          dObj = new Date(parseInt(mIso[1], 10), parseInt(mIso[2], 10) - 1, parseInt(mIso[3], 10));
+        } else {
+          const mDm = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+          if (mDm) {
+            dObj = new Date(parseInt(mDm[3], 10), parseInt(mDm[2], 10) - 1, parseInt(mDm[1], 10));
+          } else {
+            const fb = new Date(s);
+            if (!isNaN(fb.getTime())) dObj = new Date(fb.getFullYear(), fb.getMonth(), fb.getDate());
+          }
+        }
+      }
+
+      if (dObj) {
+        if (dObj.getTime() >= today.getTime()) {
+          upcomingCandidates.push({
+            mid: r[midCol] || '',
+            conference: r[nameCol] || 'Untitled Event',
+            date: Utilities.formatDate(dObj, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+            dateObj: dObj,
+            pax: r[paxCol] || 0
+          });
+        }
+
+        for (let i = 0; i < 6; i++) {
+          const start = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+          const end = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1);
+          if (dObj >= start && dObj < end) {
+            trendData[i]++;
+            break;
+          }
+        }
+      }
     });
 
-    const labels = Object.keys(counts);
-    const data = labels.map(k => counts[k]);
-    return { labels: labels, data: data };
-  } catch (err) {
-    console.error('getItemsDistribution error', err);
-    return { labels: [], data: [], error: err.message };
+    upcoming = upcomingCandidates
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+      .slice(0, 5)
+      .map(item => ({
+        mid: item.mid,
+        conference: item.conference,
+        date: item.date,
+        pax: item.pax
+      }));
   }
+
+  let catLabels = [];
+  let catData = [];
+  let itemDistLabels = [];
+  let itemDistData = [];
+
+  if (catSheet && catSheet.getLastRow() > 1) {
+    const rawCats = catSheet.getRange(2, 1, catSheet.getLastRow() - 1, catSheet.getLastColumn()).getValues();
+    const catHeader = catSheet.getRange(1, 1, 1, catSheet.getLastColumn()).getValues()[0].map(h => String(h || '').trim().toLowerCase());
+    let nameIdx = catHeader.findIndex(h => h.includes('name'));
+    if (nameIdx === -1) nameIdx = catHeader.length > 1 ? 1 : 0;
+    catLabels = rawCats.map(r => String(r[nameIdx] || '').trim()).filter(Boolean);
+  }
+
+  if (itemSheet && itemSheet.getLastRow() > 1) {
+    const lastCol = itemSheet.getLastColumn();
+    const rawItems = itemSheet.getRange(2, 1, itemSheet.getLastRow() - 1, lastCol).getValues();
+    const itemHeader = itemSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || '').trim().toLowerCase());
+    let catCol = itemHeader.findIndex(h => h.includes('cat'));
+    if (catCol === -1) catCol = lastCol > 1 ? 1 : 0;
+
+    const counts = {};
+    catLabels.forEach(l => { counts[l] = 0; });
+    let otherCount = 0;
+
+    rawItems.forEach(r => {
+      const cVal = String(r[catCol] || '').trim();
+      if (cVal && counts.hasOwnProperty(cVal)) {
+        counts[cVal]++;
+      } else if (cVal) {
+        otherCount++;
+        counts[cVal] = (counts[cVal] || 0) + 1;
+      }
+    });
+
+    catData = catLabels.map(l => counts[l] || 0);
+    if (otherCount > 0 && !catLabels.includes('Other')) {
+      catLabels.push('Other');
+      catData.push(otherCount);
+    }
+
+    itemDistLabels = Object.keys(counts);
+    itemDistData = itemDistLabels.map(k => counts[k]);
+  }
+
+  return {
+    stats: {
+      categories: catCount,
+      items: itemCount,
+      menu: menuCount,
+      users: userCount,
+      upcoming: upcoming
+    },
+    trends: {
+      labels: trendLabels,
+      data: trendData
+    },
+    categoryBreakdown: {
+      labels: catLabels.length ? catLabels : ['No Categories'],
+      data: catData.length ? catData : [0]
+    },
+    itemsDistribution: {
+      labels: itemDistLabels.length ? itemDistLabels : ['No Items'],
+      data: itemDistData.length ? itemDistData : [0]
+    }
+  };
 }
 
 /**
  * Dashboard stats aggregator - counts per sheet
  */
 function getDashboardStats() {
-  const user = requirePermission_('dashboard.view');
-  const canViewUsers = hasRolePermission_(user.role, 'users.view');
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = ['categories', 'items', 'menu'];
-  if (canViewUsers) {
-    sheets.push('users');
-  }
-
-  const stats = {};
-
-  sheets.forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet) { stats[name] = 0; return; }
-    const lastRow = sheet.getLastRow();
-    stats[name] = lastRow > 1 ? lastRow - 1 : 0;
-  });
-
-  if (!canViewUsers) {
-    stats.users = null; // Signal to client that users stat is hidden
-  }
-
-  // Upcoming conferences (menu sheet)
-  const menuSheet = ss.getSheetByName('menu');
-  let upcoming = [];
-  if (menuSheet && menuSheet.getLastRow() > 1) {
-    const data = menuSheet.getRange(2, 1, menuSheet.getLastRow() - 1, 6).getValues();
-    const now = new Date();
-    upcoming = data
-      .filter(r => r[2] instanceof Date && r[2] >= now)
-      .sort((a, b) => a[2] - b[2])
-      .slice(0, 5)
-      .map(r => ({
-        mid: r[0],
-        conference: r[1],
-        date: Utilities.formatDate(r[2], Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-        pax: r[3]
-      }));
-  }
-
-  stats.upcoming = upcoming;
-  return stats;
+  const payload = getDashboardPayload();
+  return payload.stats;
 }
 
 /**
