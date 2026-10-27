@@ -5,7 +5,7 @@
 const SHEET_HEADERS = {
   categories: ['ID', 'Categories name'],
   items: ['ID', 'Items Name'],
-  menu: ['mid', 'conference name', 'date', 'pax', 'menu', 'remarks'],
+  menu: ['mid', 'conference name', 'date', 'pax', 'menu', 'remarks', 'status'],
   users: ['userid', 'firstname', 'lastname', 'contact', 'email', 'username', 'password', 'role', 'department', 'status'],
   settings: ['key', 'value']
 };
@@ -30,7 +30,18 @@ function getHeaders_(sheet, name) {
   if (sheet && sheet.getLastRow() >= 1 && sheet.getLastColumn() >= 1) {
     const raw = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const cleaned = raw.map(h => String(h != null ? h : '').trim()).filter(Boolean);
-    if (cleaned.length > 0) return cleaned;
+    if (cleaned.length > 0) {
+      // Auto-migrate menu sheet if 'status' column is missing in row 1
+      if (name === 'menu' && !cleaned.some(h => normKey_(h) === 'status')) {
+        const nextCol = cleaned.length + 1;
+        sheet.getRange(1, nextCol).setValue('status')
+          .setFontWeight('bold')
+          .setBackground('#1f2937')
+          .setFontColor('#ffffff');
+        cleaned.push('status');
+      }
+      return cleaned;
+    }
   }
   return SHEET_HEADERS[name] || [];
 }

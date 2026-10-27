@@ -48,6 +48,7 @@ function createMenu(data) {
   if (!data || !data['conference name']) throw new Error('Conference name is required');
   if (!data['mid']) data['mid'] = genId_('MEN');
   if (data['date']) data['date'] = new Date(data['date']);
+  if (!data['status']) data['status'] = 'Pending';
 
   if (data.menu && typeof data.menu === 'string' && data.menu.startsWith('{')) {
     try {
@@ -74,6 +75,22 @@ function updateMenu(id, data) {
 
   const updated = updateRow_(MENU_SHEET, MENU_ID, id, data);
   try { sendConferenceAlert_('edit', updated); } catch (e) {}
+  return updated;
+}
+
+function approveMenu(id) {
+  requirePermission_('menu.edit');
+  const updated = updateRow_(MENU_SHEET, MENU_ID, id, { status: 'Approved' });
+  try { sendConferenceAlert_('approve', updated); } catch (e) {}
+  return updated;
+}
+
+function updateMenuStatus(id, newStatus) {
+  requirePermission_('menu.edit');
+  const valid = ['Pending', 'Approved'];
+  const cleanStatus = valid.includes(newStatus) ? newStatus : 'Pending';
+  const updated = updateRow_(MENU_SHEET, MENU_ID, id, { status: cleanStatus });
+  try { sendConferenceAlert_(cleanStatus.toLowerCase(), updated); } catch (e) {}
   return updated;
 }
 

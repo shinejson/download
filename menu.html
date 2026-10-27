@@ -39,6 +39,15 @@
       </label>
 
       <label class="filter-control">
+        <i class="fa-solid fa-circle-check"></i> Status:
+        <select class="filter-select" id="menuStatusFilter" aria-label="Filter by status">
+          <option value="all">All Statuses</option>
+          <option value="approved">Approved</option>
+          <option value="pending">Pending Approval</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
         <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
         <select class="filter-select" id="menuSortOrder" aria-label="Sort conferences">
           <option value="date_asc">Date (Earliest First)</option>

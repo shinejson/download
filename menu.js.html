@@ -9,6 +9,7 @@ Pages.menu = (function () {
   let searchQuery = '';
   let timelineFilter = 'all';
   let paxFilter = 'all';
+  let statusFilter = 'all';
   let sortOrder = 'date_asc';
 
   const DEFAULT_CATEGORIES = [
@@ -70,6 +71,15 @@ Pages.menu = (function () {
       </label>
 
       <label class="filter-control">
+        <i class="fa-solid fa-circle-check"></i> Status:
+        <select class="filter-select" id="menuStatusFilter" aria-label="Filter by status">
+          <option value="all">All Statuses</option>
+          <option value="approved">Approved</option>
+          <option value="pending">Pending Approval</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
         <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
         <select class="filter-select" id="menuSortOrder" aria-label="Sort conferences">
           <option value="date_asc">Date (Earliest First)</option>
@@ -105,6 +115,7 @@ Pages.menu = (function () {
     const clearBtn = document.getElementById('menuSearchClearBtn');
     const timelineSelect = document.getElementById('menuTimelineFilter');
     const paxSelect = document.getElementById('menuPaxFilter');
+    const statusSelect = document.getElementById('menuStatusFilter');
     const sortSelect = document.getElementById('menuSortOrder');
     const resetBtn = document.getElementById('menuResetFiltersBtn');
 
@@ -146,6 +157,14 @@ Pages.menu = (function () {
       };
     }
 
+    if (statusSelect) {
+      statusSelect.onchange = (e) => {
+        statusFilter = e.target.value;
+        page = 1;
+        render();
+      };
+    }
+
     if (sortSelect) {
       sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
@@ -159,6 +178,7 @@ Pages.menu = (function () {
         searchQuery = '';
         timelineFilter = 'all';
         paxFilter = 'all';
+        statusFilter = 'all';
         sortOrder = 'date_asc';
         page = 1;
 
@@ -166,6 +186,7 @@ Pages.menu = (function () {
         if (clearBtn) clearBtn.style.display = 'none';
         if (timelineSelect) timelineSelect.value = 'all';
         if (paxSelect) paxSelect.value = 'all';
+        if (statusSelect) statusSelect.value = 'all';
         if (sortSelect) sortSelect.value = 'date_asc';
 
         render();
@@ -302,6 +323,13 @@ Pages.menu = (function () {
         if (paxFilter === 'large' && pax <= 150) return false;
       }
 
+      // Status filter
+      if (statusFilter !== 'all') {
+        const st = String(r.status || 'Pending').trim().toLowerCase();
+        if (statusFilter === 'approved' && st !== 'approved') return false;
+        if (statusFilter === 'pending' && st !== 'pending') return false;
+      }
+
       // Text search
       if (q) {
         const haystack = [
@@ -362,6 +390,7 @@ Pages.menu = (function () {
       'Conference / Event',
       'Date & Day',
       'Pax',
+      'Status',
       'Menu & Production Structure',
       'Remarks',
       'Actions'
@@ -373,7 +402,7 @@ Pages.menu = (function () {
       rows: filtered,
       page: page,
       pageSize: pageSize,
-      emptyMsg: searchQuery || timelineFilter !== 'all' || paxFilter !== 'all'
+      emptyMsg: searchQuery || timelineFilter !== 'all' || paxFilter !== 'all' || statusFilter !== 'all'
         ? 'No conferences match your filter criteria.'
         : 'No conference records found.',
       onPageChange: (newPage) => {
@@ -390,6 +419,12 @@ Pages.menu = (function () {
         const isUpcoming = d && !isNaN(d.getTime()) && d >= new Date();
         const dateFormatted = App.fmtDate(r.date);
         const dayName = d && !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : '';
+
+        const rawStatus = String(r.status || 'Pending').trim();
+        const isApproved = rawStatus.toLowerCase() === 'approved';
+        const statusBadge = isApproved
+          ? `<span class="role-badge" style="background:#dcfce7;color:#15803d;font-weight:600;font-size:11px;padding:3px 9px;"><i class="fa-solid fa-circle-check"></i> Approved</span>`
+          : `<span class="role-badge" style="background:#fef3c7;color:#b45309;font-weight:600;font-size:11px;padding:3px 9px;"><i class="fa-solid fa-clock"></i> Pending</span>`;
 
         const parsed = parseMenuData(r.menu);
         const catCount = parsed.categories.length;
@@ -443,12 +478,18 @@ Pages.menu = (function () {
               <span style="font-weight:700;color:var(--text);font-size:13px;">${App.esc(r.pax || '—')}</span>
               ${r.pax ? '<span style="font-size:11px;color:var(--text-light);"> PAX</span>' : ''}
             </td>
+            <td>${statusBadge}</td>
             <td>${menuSummaryHtml}</td>
             <td><small style="color:var(--text-light);">${App.esc(r.remarks || '—')}</small></td>
             <td class="actions-cell">
               <button class="btn btn-secondary btn-sm" data-sheet="${App.esc(r.mid)}" title="View/Print Production Sheet">
                 <i class="fa-solid fa-file-invoice"></i> Sheet
               </button>
+              ${(!isApproved && (canEdit || (App.currentUser && App.currentUser.role === 'admin'))) ? `
+                <button class="btn btn-success btn-sm" data-approve="${App.esc(r.mid)}" title="Approve this conference menu">
+                  <i class="fa-solid fa-check"></i> Approve
+                </button>
+              ` : ''}
               ${canEdit ? `<button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.mid)}" title="Edit conference menu"><i class="fa-solid fa-pen-to-square"></i> Edit</button>` : ''}
               ${canDelete ? `<button class="btn btn-danger btn-sm" data-del="${App.esc(r.mid)}" title="Delete conference"><i class="fa-solid fa-trash-can"></i></button>` : ''}
             </td>
@@ -459,6 +500,10 @@ Pages.menu = (function () {
 
     wrap.querySelectorAll('[data-sheet]').forEach(b => {
       b.onclick = () => openProductionSheet(records.find(x => String(x.mid) === b.dataset.sheet));
+    });
+
+    wrap.querySelectorAll('[data-approve]').forEach(b => {
+      b.onclick = () => approveConference(b.dataset.approve);
     });
 
     if (canEdit) {
@@ -472,6 +517,22 @@ Pages.menu = (function () {
         b.onclick = () => remove(b.dataset.del);
       });
     }
+  }
+
+  function approveConference(id) {
+    if (!App.can('menu.edit') && !(App.currentUser && App.currentUser.role === 'admin')) {
+      App.toast('Permission denied: You cannot approve conference menus.', 'error');
+      return;
+    }
+    if (!window.confirm('Approve this conference menu?')) return;
+    google.script.run
+      .withSuccessHandler(() => {
+        App.toast('Conference menu approved successfully.');
+        load();
+        App.refreshNotifications();
+      })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .approveMenu(id);
   }
 
   function getDayOfWeek(dateStr) {
@@ -575,6 +636,14 @@ Pages.menu = (function () {
             <label>
               <span>Remarks / Setup Notes</span>
               <input type="text" id="builderConfRemarks" placeholder="e.g. Table layout, VIP setup..." value="${App.esc(record ? record.remarks : '')}">
+            </label>
+
+            <label>
+              <span>Approval Status</span>
+              <select id="builderConfStatus" style="height:38px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;background:var(--surface);color:var(--text);">
+                <option value="Pending" ${(!record || record.status !== 'Approved') ? 'selected' : ''}>Pending Approval</option>
+                <option value="Approved" ${(record && record.status === 'Approved') ? 'selected' : ''}>Approved</option>
+              </select>
             </label>
           </div>
 
@@ -817,10 +886,14 @@ Pages.menu = (function () {
         ingredients: cleanIngredients
       };
 
+      const confStatusSelect = backdrop.querySelector('#builderConfStatus');
+      const confStatus = confStatusSelect ? confStatusSelect.value : (record ? (record.status || 'Pending') : 'Pending');
+
       const payload = {
         'conference name': confName,
         date: confDate || '',
         pax: confPax || '',
+        status: confStatus,
         remarks: confRemarks || '',
         menu: JSON.stringify(structuredMenu)
       };
@@ -871,6 +944,17 @@ Pages.menu = (function () {
     const displayDate = formatDisplayDate(dateStr);
     const paxStr = record.pax ? `${record.pax}PAX` : '';
 
+    // Brand info
+    const brand = (typeof App.getBrandSettings === 'function' ? App.getBrandSettings() : {}) || {};
+    const companyName = brand.company_name || brand.app_display_name || 'Conference Records & Catering';
+    const companyLogo = brand.company_logo || '';
+    const companyAddress = brand.company_address || '';
+    const companyPhone = brand.company_phone || '';
+    const companyEmail = brand.system_email || '';
+
+    let currentStatus = String(record.status || 'Pending').trim();
+    let isApproved = currentStatus.toLowerCase() === 'approved';
+
     // Document title matching exact style: SELWYN'S 70TH BIRTHDAY(30PAX) – SUNDAY-18/10/2026
     const sheetHeaderTitle = `${String(record['conference name'] || 'EVENT').toUpperCase()}${paxStr ? `(${paxStr})` : ''} &ndash; ${dayOfWeek ? `${dayOfWeek}-` : ''}${displayDate || ''}`;
 
@@ -889,6 +973,24 @@ Pages.menu = (function () {
         <div class="modal-body" style="padding: 24px; background: #f1f5f9;">
           <!-- Printable Canvas -->
           <div class="production-sheet-card" id="productionSheetPrintArea">
+            <!-- Brand Header -->
+            <div class="sheet-brand-bar">
+              <div class="sheet-brand-left">
+                ${companyLogo ? `<img src="${App.esc(companyLogo)}" alt="Logo" class="sheet-brand-logo-img">` : '<i class="fa-solid fa-utensils" style="font-size:24px;color:#111827;"></i>'}
+                <div class="sheet-brand-title-group">
+                  <span class="sheet-brand-name">${App.esc(companyName)}</span>
+                  <span class="sheet-brand-sub">${App.esc(companyAddress || 'Catering & Event Production Services')}</span>
+                </div>
+              </div>
+              <div class="sheet-brand-right">
+                <span class="sheet-status-tag ${isApproved ? 'approved' : 'pending'}" id="sheetModalStatusTag">
+                  <i class="fa-solid ${isApproved ? 'fa-circle-check' : 'fa-clock'}"></i>
+                  ${isApproved ? 'APPROVED' : 'PENDING APPROVAL'}
+                </span>
+                <span class="sheet-print-meta">Generated: ${App.esc(new Date().toLocaleDateString('en-GB'))}</span>
+              </div>
+            </div>
+
             <div class="sheet-header-title">
               ${sheetHeaderTitle}
             </div>
@@ -944,8 +1046,15 @@ Pages.menu = (function () {
             </div>
 
             ${record.remarks ? `
-              <div style="margin-top:28px;padding-top:14px;border-top:1px dashed #d1d5db;font-size:12px;color:#4b5563;">
+              <div class="sheet-footer-remarks" style="margin-top:24px;padding-top:10px;border-top:1px dashed #d1d5db;font-size:12px;color:#4b5563;">
                 <strong>Remarks / Setup Instructions:</strong> ${App.esc(record.remarks)}
+              </div>
+            ` : ''}
+
+            ${(companyPhone || companyEmail) ? `
+              <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280;display:flex;justify-content:space-between;flex-wrap:wrap;">
+                <span>${companyPhone ? `Tel: ${App.esc(companyPhone)}` : ''}</span>
+                <span>${companyEmail ? `Email: ${App.esc(companyEmail)}` : ''}</span>
               </div>
             ` : ''}
           </div>
@@ -953,22 +1062,281 @@ Pages.menu = (function () {
 
         <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
           <button type="button" class="btn btn-secondary" data-close>Close</button>
-          <button type="button" class="btn btn-primary" id="sheetPrintBtn">
-            <i class="fa-solid fa-print"></i> Print Production Sheet
-          </button>
+          <div style="display:flex;gap:10px;align-items:center;">
+            ${(!isApproved && (App.can('menu.edit') || (App.currentUser && App.currentUser.role === 'admin'))) ? `
+              <button type="button" class="btn btn-success" id="sheetApproveBtn">
+                <i class="fa-solid fa-check"></i> Approve Menu
+              </button>
+            ` : ''}
+            <button type="button" class="btn btn-primary" id="sheetPrintBtn">
+              <i class="fa-solid fa-print"></i> Print Production Sheet (A4)
+            </button>
+          </div>
         </div>
       </div>
     `;
 
     document.body.appendChild(backdrop);
+    document.body.classList.add('sheet-modal-open');
 
-    function close() { backdrop.remove(); }
+    function close() {
+      document.body.classList.remove('sheet-modal-open');
+      backdrop.remove();
+    }
     backdrop.querySelector('.modal-close').onclick = close;
     backdrop.querySelector('[data-close]').onclick = close;
 
+    // Approve button within sheet modal
+    const sheetApproveBtn = backdrop.querySelector('#sheetApproveBtn');
+    if (sheetApproveBtn) {
+      sheetApproveBtn.onclick = () => {
+        sheetApproveBtn.disabled = true;
+        sheetApproveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Approving...';
+        google.script.run
+          .withSuccessHandler(() => {
+            App.toast('Conference menu approved successfully.');
+            record.status = 'Approved';
+            isApproved = true;
+            sheetApproveBtn.remove();
+            const tag = backdrop.querySelector('#sheetModalStatusTag');
+            if (tag) {
+              tag.className = 'sheet-status-tag approved';
+              tag.innerHTML = '<i class="fa-solid fa-circle-check"></i> APPROVED';
+            }
+            load();
+            App.refreshNotifications();
+          })
+          .withFailureHandler(err => {
+            sheetApproveBtn.disabled = false;
+            sheetApproveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Approve Menu';
+            App.toast(err && err.message ? err.message : 'Failed to approve menu', 'error');
+          })
+          .approveMenu(record.mid);
+      };
+    }
+
+    // Print button: Isolated single-page A4 print
     backdrop.querySelector('#sheetPrintBtn').onclick = () => {
-      window.print();
+      triggerA4Print(record);
     };
+  }
+
+  function triggerA4Print(record) {
+    const printArea = document.getElementById('productionSheetPrintArea');
+    if (!printArea) {
+      window.print();
+      return;
+    }
+
+    const contentHtml = printArea.innerHTML;
+
+    // Build standalone HTML for single A4 page print
+    const printHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Production Sheet - ${App.esc(record['conference name'] || 'Event')}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.25;
+    }
+    .production-sheet-card {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sheet-brand-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #000;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .sheet-brand-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sheet-brand-logo-img {
+      max-height: 36px;
+      max-width: 100px;
+      object-fit: contain;
+    }
+    .sheet-brand-name {
+      font-size: 13pt;
+      font-weight: 900;
+      color: #000;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+    }
+    .sheet-brand-sub {
+      font-size: 8pt;
+      color: #555;
+    }
+    .sheet-brand-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+    }
+    .sheet-status-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1.5px solid #000;
+      font-size: 8.5pt;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border-radius: 4px;
+    }
+    .sheet-status-tag.approved {
+      background: #dcfce7 !important;
+      color: #15803d !important;
+      border-color: #15803d !important;
+    }
+    .sheet-status-tag.pending {
+      background: #fef3c7 !important;
+      color: #b45309 !important;
+      border-color: #b45309 !important;
+    }
+    .sheet-print-meta {
+      font-size: 8pt;
+      color: #555;
+    }
+    .sheet-header-title {
+      font-size: 12.5pt;
+      margin-bottom: 8px;
+      font-weight: 900;
+      text-decoration: underline;
+      text-align: center;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .sheet-content-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .sheet-category-title {
+      font-size: 10pt;
+      font-weight: 900;
+      margin: 5px 0 2px 0;
+      border-bottom: 1.5px solid #000;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sheet-dish-line {
+      font-size: 9.5pt;
+      line-height: 1.25;
+      margin-bottom: 2px;
+    }
+    .sheet-dish-line.sub-item {
+      padding-left: 14px;
+      font-size: 9pt;
+      font-style: italic;
+    }
+    .sheet-ingredients-frame {
+      border: 1.5px solid #000;
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+    .sheet-ingredients-header {
+      font-size: 10pt;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-align: center;
+      border-bottom: 1.5px solid #000;
+      padding-bottom: 2px;
+      margin-bottom: 4px;
+    }
+    .sheet-ingredient-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5pt;
+      line-height: 1.25;
+      padding: 2px 0;
+      border-bottom: 1px dotted #ccc;
+    }
+    .sheet-ingredient-name {
+      font-weight: 500;
+    }
+    .sheet-ingredient-weight {
+      font-weight: 700;
+    }
+    .sheet-footer-remarks {
+      margin-top: 8px;
+      padding-top: 4px;
+      border-top: 1px dashed #666;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="production-sheet-card">
+    ${contentHtml}
+  </div>
+</body>
+</html>`;
+
+    let printed = false;
+    try {
+      let iframe = document.getElementById('sheetPrintIframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'sheetPrintIframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
+      }
+
+      const idoc = iframe.contentWindow.document;
+      idoc.open();
+      idoc.write(printHtml);
+      idoc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          printed = true;
+        } catch (e) {
+          // If iframe print fails (sandboxing), fall back to window.print()
+          document.body.classList.add('sheet-modal-open');
+          window.print();
+          setTimeout(() => { document.body.classList.remove('sheet-modal-open'); }, 1000);
+        }
+      }, 300);
+    } catch (e) {
+      document.body.classList.add('sheet-modal-open');
+      window.print();
+      setTimeout(() => { document.body.classList.remove('sheet-modal-open'); }, 1000);
+    }
   }
 
   function remove(id) {
@@ -983,6 +1351,6 @@ Pages.menu = (function () {
       .deleteMenu(id);
   }
 
-  return { init, onShow, load, openMenuBuilder, openProductionSheet };
+  return { init, onShow, load, openMenuBuilder, openProductionSheet, approveConference };
 })();
 </script>

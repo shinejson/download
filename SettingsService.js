@@ -2,16 +2,28 @@ const SETTINGS_SHEET = 'settings';
 
 function getSettings() {
   requirePermission_('settings.view');
-  return readAll_(SETTINGS_SHEET);
+  const sheet = getSheet_(SETTINGS_SHEET);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const numCols = Math.max(2, sheet.getLastColumn());
+  const data = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+  return data.map(r => ({
+    key: String(r[0] != null ? r[0] : '').trim(),
+    value: r[1] != null ? String(r[1]) : ''
+  })).filter(r => r.key);
 }
 
 function getSettingsMap() {
   requirePermission_('settings.view');
-  const rows = readAll_(SETTINGS_SHEET) || [];
+  const rows = getSettings();
   const map = {};
   rows.forEach(r => {
-    const k = String(r.key || '').trim();
-    if (k) map[k] = r.value !== undefined && r.value !== null ? String(r.value) : '';
+    const k = r.key;
+    if (k) {
+      map[k] = r.value != null ? String(r.value) : '';
+      map[k.toLowerCase()] = map[k];
+      map[k.toLowerCase().replace(/[^a-z0-9]/g, '_')] = map[k];
+    }
   });
   return map;
 }

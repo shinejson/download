@@ -54,7 +54,8 @@ function include(filename) {
       clean,
       base + '.js.html',
       base + '.js',
-      base
+      base + 's.js.html',
+      base + 's.js'
     ];
   } else {
     const base = clean.replace(/\.html$/, '');
@@ -70,12 +71,15 @@ function include(filename) {
       if (content !== undefined && content !== null && content !== '') {
         const trimmed = String(content).trim();
         if (isJs) {
-          // If the script partial does not start with <script>, automatically wrap it
-          // so it safely executes as JavaScript instead of rendering as text on the webpage!
-          if (!trimmed.toLowerCase().startsWith('<script')) {
-            return '<script>\n' + trimmed + '\n</script>';
+          if (trimmed.toLowerCase().startsWith('<script')) {
+            return trimmed;
           }
-          return trimmed;
+          // If the file content starts with HTML markup (e.g., <div, <!--, <p, etc.) but NOT <script,
+          // then this candidate is an HTML view/partial, NOT a script. Do NOT wrap it in <script> tags!
+          if (trimmed.startsWith('<')) {
+            continue;
+          }
+          return '<script>\n' + trimmed + '\n</script>';
         }
         return content;
       }

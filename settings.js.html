@@ -634,13 +634,19 @@ Pages.settings = (function () {
         records = data || [];
         settingsMap = {};
         records.forEach(r => {
-          const k = String(r.key || '').trim();
-          if (k) settingsMap[k] = r.value !== undefined && r.value !== null ? String(r.value) : '';
+          const k = String(r.key || r.Key || '').trim();
+          const v = r.value !== undefined && r.value !== null ? String(r.value) : (r.Value != null ? String(r.Value) : '');
+          if (k) {
+            settingsMap[k] = v;
+            settingsMap[k.toLowerCase()] = v;
+            settingsMap[k.toLowerCase().replace(/[^a-z0-9]/g, '_')] = v;
+            settingsMap[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = v;
+          }
         });
 
         populateFormFields();
-        if (typeof App !== 'undefined' && typeof App.loadBrandSettings === 'function') {
-          App.loadBrandSettings();
+        if (typeof App !== 'undefined' && typeof App.applyBrandSettings === 'function') {
+          App.applyBrandSettings(settingsMap);
         }
         renderTable();
       })
@@ -658,18 +664,39 @@ Pages.settings = (function () {
   }
 
   function populateFormFields() {
-    // 1. Company Profile
-    const setVal = (id, k, fallback = '') => {
-      const el = document.getElementById(id);
-      if (el) el.value = settingsMap[k] !== undefined ? settingsMap[k] : fallback;
-    };
-    const setCheck = (id, k, fallback = false) => {
-      const el = document.getElementById(id);
-      if (el) el.checked = settingsMap[k] !== undefined ? settingsMap[k] === 'true' : fallback;
+    const getVal = (k, fallback = '') => {
+      const candidates = [
+        k,
+        k.toLowerCase(),
+        k.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+        k.toLowerCase().replace(/[^a-z0-9]/g, ''),
+        k.replace(/_/g, ' ')
+      ];
+      for (let i = 0; i < candidates.length; i++) {
+        const val = settingsMap[candidates[i]];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          return String(val);
+        }
+      }
+      return fallback;
     };
 
+    const setVal = (id, k, fallback = '') => {
+      const el = document.getElementById(id);
+      if (el) el.value = getVal(k, fallback);
+    };
+
+    const setCheck = (id, k, fallback = false) => {
+      const el = document.getElementById(id);
+      if (el) {
+        const val = getVal(k, String(fallback)).toLowerCase();
+        el.checked = val === 'true' || val === '1' || val === 'yes';
+      }
+    };
+
+    // 1. Company Profile
     setVal('cfgCompanyName', 'company_name', 'Conference Records Catering');
-    setVal('cfgCompanyTagline', 'company_tagline', 'Premier Culinary & Event Solutions');
+    setVal('cfgCompanyTagline', 'company_tagline', '');
     setVal('cfgCompanyPhone', 'company_phone', '');
     setVal('cfgCompanyEmail', 'company_email', '');
     setVal('cfgCompanyAddress', 'company_address', '');
@@ -677,11 +704,11 @@ Pages.settings = (function () {
     setVal('cfgCompanyTaxId', 'company_tax_id', '');
     setVal('cfgCompanyFooterNote', 'company_footer_note', 'All catering orders and weight portions subject to kitchen head chef confirmation.');
 
-    updateLogoPreview(settingsMap['company_logo'] || '');
+    updateLogoPreview(getVal('company_logo', ''));
 
     // 2. Email Configuration
     setCheck('cfgEmailNotificationsEnabled', 'email_notifications_enabled', false);
-    setVal('cfgEmailSenderName', 'email_sender_name', settingsMap['company_name'] || 'Conference Management');
+    setVal('cfgEmailSenderName', 'email_sender_name', getVal('company_name', 'Conference Management'));
     setVal('cfgEmailSubjectPrefix', 'email_subject_prefix', '[Conference Records]');
     setVal('cfgEmailRecipients', 'email_recipients', '');
     setCheck('cfgNotifyOnCreate', 'email_notify_on_create', true);
@@ -697,10 +724,11 @@ Pages.settings = (function () {
     setVal('cfgDefaultCategories', 'default_categories', 'STARTER, MAIN DISH, SIDE DISH, DESERT, SIDE ORDERS (A LA CARTE)');
 
     // Reflect brand name in topbar
-    if (settingsMap['app_display_name']) {
+    const appBrand = getVal('app_display_name') || getVal('company_name');
+    if (appBrand) {
       const topTitle = document.getElementById('topnavTitle');
       if (topTitle && topTitle.textContent === 'Conference Records') {
-        topTitle.textContent = settingsMap['app_display_name'];
+        topTitle.textContent = appBrand;
       }
     }
   }
@@ -738,6 +766,11 @@ Pages.settings = (function () {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Company Profile';
         App.toast('Company profile saved successfully.');
+        Object.assign(settingsMap, payload);
+        populateFormFields();
+        if (typeof App !== 'undefined' && typeof App.applyBrandSettings === 'function') {
+          App.applyBrandSettings(payload);
+        }
         load();
       })
       .withFailureHandler(err => {
@@ -855,6 +888,11 @@ Pages.settings = (function () {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save System Setup';
         App.toast('System runtime setup saved.');
+        Object.assign(settingsMap, payload);
+        populateFormFields();
+        if (typeof App !== 'undefined' && typeof App.applyBrandSettings === 'function') {
+          App.applyBrandSettings(payload);
+        }
         load();
       })
       .withFailureHandler(err => {

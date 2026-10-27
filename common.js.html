@@ -10,6 +10,7 @@ var App = window.App = (function () {
   let currentPage = 'dashboard';
   let currentUser = null;
   let userPermissions = [];
+  let currentBrandSettings = {};
   const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
   function isStrongPassword(value) {
@@ -55,27 +56,32 @@ var App = window.App = (function () {
 
   function applyBrandSettings(settings) {
     const settingsMap = settings && typeof settings === 'object' ? settings : {};
-    const appName = String(settingsMap.app_display_name || settingsMap.company_name || 'Conference Records').trim();
-    const logoUrl = String(settingsMap.company_logo || '').trim();
+    currentBrandSettings = Object.assign({}, settingsMap);
+    const getSettingVal = (k) => {
+      if (settingsMap[k] !== undefined && settingsMap[k] !== null && String(settingsMap[k]).trim() !== '') return String(settingsMap[k]).trim();
+      const lower = k.toLowerCase();
+      if (settingsMap[lower] !== undefined && settingsMap[lower] !== null && String(settingsMap[lower]).trim() !== '') return String(settingsMap[lower]).trim();
+      const under = lower.replace(/[^a-z0-9]/g, '_');
+      if (settingsMap[under] !== undefined && settingsMap[under] !== null && String(settingsMap[under]).trim() !== '') return String(settingsMap[under]).trim();
+      return '';
+    };
+
+    const appName = getSettingVal('company_name') || getSettingVal('app_display_name') || 'Conference Records';
+    const logoUrl = getSettingVal('company_logo');
     const currentYear = new Date().getFullYear();
 
-    const brandTextEl = document.querySelector('.sidebar-brand span');
-    const brandLogoEl = document.querySelector('.sidebar-brand .logo');
+    const brandTextEl = document.getElementById('sidebarBrandName') || document.querySelector('.sidebar-brand span');
+    const brandLogoEl = document.getElementById('sidebarBrandLogo') || document.querySelector('.sidebar-brand .logo');
     const footerEl = document.querySelector('.sidebar-footer');
 
-    if (brandTextEl) brandTextEl.textContent = appName || 'Conference Records';
-    if (footerEl) footerEl.textContent = '© ' + currentYear + ' ' + (appName || 'Conference Records');
+    if (brandTextEl) brandTextEl.textContent = appName;
+    if (footerEl) footerEl.textContent = '© ' + currentYear + ' ' + appName;
     if (brandLogoEl) {
       if (logoUrl) {
-        brandLogoEl.innerHTML = '<img src="' + App.esc(logoUrl) + '" alt="Brand Logo" style="width:28px;height:28px;object-fit:cover;border-radius:8px;display:block;">';
+        brandLogoEl.innerHTML = '<img src="' + esc(logoUrl) + '" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">';
       } else {
         brandLogoEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i>';
       }
-    }
-
-    const titleEl = document.getElementById('topnavTitle');
-    if (titleEl && (!titleEl.dataset.userOverride || titleEl.dataset.userOverride === 'dashboard')) {
-      titleEl.textContent = titleEl.textContent === 'Dashboard' ? 'Dashboard' : titleEl.textContent;
     }
   }
 
@@ -429,7 +435,7 @@ var App = window.App = (function () {
     startSessionTimer();
     loadCurrentUser();
 
-    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
+    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
     pageKeys.forEach(k => {
       if (window.Pages && window.Pages[k] && typeof window.Pages[k].init === 'function') {
         try { window.Pages[k].init(); } catch (err) { console.error('Error initializing ' + k + ' page:', err); }
@@ -840,7 +846,8 @@ var App = window.App = (function () {
   return {
     init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable, renderPaginatedTable,
     isStrongPassword,
-    logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser, loadBrandSettings,
+    logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser, loadBrandSettings, applyBrandSettings,
+    getBrandSettings: () => currentBrandSettings,
     can, canView, applyRolePermissions,
     loadNotifications, refreshNotifications,
     get currentUser() { return currentUser; },
