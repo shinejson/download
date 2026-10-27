@@ -22,9 +22,37 @@
         <i class="fa-solid fa-clock"></i> Timeline:
         <select class="filter-select" id="menuTimelineFilter" aria-label="Filter by timeline">
           <option value="all">All Conferences</option>
+          <option value="today">Today</option>
+          <option value="this_week">This Week</option>
+          <option value="this_month">This Month</option>
           <option value="upcoming">Upcoming (Future)</option>
           <option value="past">Past</option>
-          <option value="this_month">This Month</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-calendar"></i> Month:
+        <select class="filter-select" id="menuMonthFilter" aria-label="Filter by month">
+          <option value="all">All Months</option>
+          <option value="0">January</option>
+          <option value="1">February</option>
+          <option value="2">March</option>
+          <option value="3">April</option>
+          <option value="4">May</option>
+          <option value="5">June</option>
+          <option value="6">July</option>
+          <option value="7">August</option>
+          <option value="8">September</option>
+          <option value="9">October</option>
+          <option value="10">November</option>
+          <option value="11">December</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-layer-group"></i> Category:
+        <select class="filter-select" id="menuCatFilter" aria-label="Filter by category">
+          <option value="all">All Categories</option>
         </select>
       </label>
 

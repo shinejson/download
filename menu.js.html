@@ -8,6 +8,8 @@ Pages.menu = (function () {
   let pageSize = 10;
   let searchQuery = '';
   let timelineFilter = 'all';
+  let monthFilter = 'all';
+  let categoryFilter = 'all';
   let paxFilter = 'all';
   let statusFilter = 'all';
   let sortOrder = 'date_asc';
@@ -19,6 +21,45 @@ Pages.menu = (function () {
     'DESERT',
     'SIDE ORDERS (A LA CARTE)'
   ];
+
+  function parseConfDate(val) {
+    if (!val) return null;
+    if (val instanceof Date) {
+      return isNaN(val.getTime()) ? null : new Date(val.getFullYear(), val.getMonth(), val.getDate());
+    }
+    const s = String(val).trim();
+    if (!s) return null;
+    // YYYY-MM-DD
+    let m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if (m) {
+      return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+    }
+    // DD-MM-YYYY or MM-DD-YYYY
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if (m) {
+      const p1 = parseInt(m[1], 10);
+      const p2 = parseInt(m[2], 10);
+      const yr = parseInt(m[3], 10);
+      if (p1 > 12) {
+        return new Date(yr, p2 - 1, p1);
+      }
+      const d = new Date(yr, p1 - 1, p2);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? null : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+  }
+
+  function getConfName(r) {
+    if (!r) return '';
+    return String(r['conference name'] || r['Conference Name'] || r['conferencename'] || r.conference_name || r.name || '').trim();
+  }
+
+  function getConfPax(r) {
+    if (!r) return 0;
+    const raw = String(r.pax || r.Pax || '').replace(/[^0-9.]/g, '');
+    return Number(raw) || 0;
+  }
 
   function ensurePageMarkup() {
     const pageEl = document.getElementById('page-menu');
@@ -54,9 +95,37 @@ Pages.menu = (function () {
         <i class="fa-solid fa-clock"></i> Timeline:
         <select class="filter-select" id="menuTimelineFilter" aria-label="Filter by timeline">
           <option value="all">All Conferences</option>
+          <option value="today">Today</option>
+          <option value="this_week">This Week</option>
+          <option value="this_month">This Month</option>
           <option value="upcoming">Upcoming (Future)</option>
           <option value="past">Past</option>
-          <option value="this_month">This Month</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-calendar"></i> Month:
+        <select class="filter-select" id="menuMonthFilter" aria-label="Filter by month">
+          <option value="all">All Months</option>
+          <option value="0">January</option>
+          <option value="1">February</option>
+          <option value="2">March</option>
+          <option value="3">April</option>
+          <option value="4">May</option>
+          <option value="5">June</option>
+          <option value="6">July</option>
+          <option value="7">August</option>
+          <option value="8">September</option>
+          <option value="9">October</option>
+          <option value="10">November</option>
+          <option value="11">December</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-layer-group"></i> Category:
+        <select class="filter-select" id="menuCatFilter" aria-label="Filter by category">
+          <option value="all">All Categories</option>
         </select>
       </label>
 
@@ -105,6 +174,34 @@ Pages.menu = (function () {
     }
   }
 
+  function populateCategoryFilter() {
+    const catSelect = document.getElementById('menuCatFilter');
+    if (!catSelect) return;
+    const currentVal = categoryFilter;
+    const catSet = new Set();
+    DEFAULT_CATEGORIES.forEach(c => catSet.add(c));
+    if (Array.isArray(categoryOptions)) {
+      categoryOptions.forEach(c => {
+        const name = String(c['Categories name'] || c['categories name'] || c.name || '').trim();
+        if (name) catSet.add(name);
+      });
+    }
+    records.forEach(r => {
+      const p = parseMenuData(r.menu);
+      p.categories.forEach(c => {
+        const name = String(c.name || '').trim();
+        if (name) catSet.add(name);
+      });
+    });
+
+    let html = '<option value="all">All Categories</option>';
+    Array.from(catSet).sort().forEach(c => {
+      html += `<option value="${App.esc(c)}">${App.esc(c)}</option>`;
+    });
+    catSelect.innerHTML = html;
+    catSelect.value = currentVal;
+  }
+
   function bindEvents() {
     const addBtn = document.getElementById('menuAddBtn');
     if (addBtn) {
@@ -114,6 +211,8 @@ Pages.menu = (function () {
     const searchInput = document.getElementById('menuSearchInput');
     const clearBtn = document.getElementById('menuSearchClearBtn');
     const timelineSelect = document.getElementById('menuTimelineFilter');
+    const monthSelect = document.getElementById('menuMonthFilter');
+    const catSelect = document.getElementById('menuCatFilter');
     const paxSelect = document.getElementById('menuPaxFilter');
     const statusSelect = document.getElementById('menuStatusFilter');
     const sortSelect = document.getElementById('menuSortOrder');
@@ -149,6 +248,22 @@ Pages.menu = (function () {
       };
     }
 
+    if (monthSelect) {
+      monthSelect.onchange = (e) => {
+        monthFilter = e.target.value;
+        page = 1;
+        render();
+      };
+    }
+
+    if (catSelect) {
+      catSelect.onchange = (e) => {
+        categoryFilter = e.target.value;
+        page = 1;
+        render();
+      };
+    }
+
     if (paxSelect) {
       paxSelect.onchange = (e) => {
         paxFilter = e.target.value;
@@ -177,6 +292,8 @@ Pages.menu = (function () {
       resetBtn.onclick = () => {
         searchQuery = '';
         timelineFilter = 'all';
+        monthFilter = 'all';
+        categoryFilter = 'all';
         paxFilter = 'all';
         statusFilter = 'all';
         sortOrder = 'date_asc';
@@ -185,6 +302,8 @@ Pages.menu = (function () {
         if (searchInput) searchInput.value = '';
         if (clearBtn) clearBtn.style.display = 'none';
         if (timelineSelect) timelineSelect.value = 'all';
+        if (monthSelect) monthSelect.value = 'all';
+        if (catSelect) catSelect.value = 'all';
         if (paxSelect) paxSelect.value = 'all';
         if (statusSelect) statusSelect.value = 'all';
         if (sortSelect) sortSelect.value = 'date_asc';
@@ -197,6 +316,7 @@ Pages.menu = (function () {
   function init() {
     ensurePageMarkup();
     bindEvents();
+    populateCategoryFilter();
     loadMasterLookups();
   }
 
@@ -210,6 +330,7 @@ Pages.menu = (function () {
   function onShow() {
     ensurePageMarkup();
     bindEvents();
+    populateCategoryFilter();
     updateControls();
     loadMasterLookups();
     load();
@@ -218,7 +339,10 @@ Pages.menu = (function () {
   function loadMasterLookups() {
     if (App.can('categories.view')) {
       google.script.run
-        .withSuccessHandler(data => { categoryOptions = data || []; })
+        .withSuccessHandler(data => {
+          categoryOptions = data || [];
+          populateCategoryFilter();
+        })
         .withFailureHandler(() => { categoryOptions = []; })
         .getCategories();
     }
@@ -248,7 +372,11 @@ Pages.menu = (function () {
     if (!wrap) return;
     wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading conferences...</div>';
     google.script.run
-      .withSuccessHandler(data => { records = data || []; render(); })
+      .withSuccessHandler(data => {
+        records = data || [];
+        populateCategoryFilter();
+        render();
+      })
       .withFailureHandler(err => {
         if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
@@ -295,29 +423,55 @@ Pages.menu = (function () {
 
   function getFilteredAndSorted() {
     const q = searchQuery.toLowerCase();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     let list = records.filter(r => {
+      const confDate = parseConfDate(r.date);
+
       // Timeline filter
       if (timelineFilter !== 'all') {
-        const d = r.date ? new Date(r.date) : null;
-        if (!d || isNaN(d.getTime())) {
-          return false;
-        }
-        d.setHours(0, 0, 0, 0);
-        if (timelineFilter === 'upcoming' && d < today) return false;
-        if (timelineFilter === 'past' && d >= today) return false;
-        if (timelineFilter === 'this_month') {
-          if (d.getFullYear() !== today.getFullYear() || d.getMonth() !== today.getMonth()) {
+        if (!confDate) return false;
+        const dTime = confDate.getTime();
+        const tTime = today.getTime();
+
+        if (timelineFilter === 'today') {
+          if (dTime !== tTime) return false;
+        } else if (timelineFilter === 'upcoming') {
+          if (dTime < tTime) return false;
+        } else if (timelineFilter === 'past') {
+          if (dTime >= tTime) return false;
+        } else if (timelineFilter === 'this_month') {
+          if (confDate.getFullYear() !== today.getFullYear() || confDate.getMonth() !== today.getMonth()) {
             return false;
           }
+        } else if (timelineFilter === 'this_week') {
+          const day = today.getDay();
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - day);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          if (dTime < startOfWeek.getTime() || dTime > endOfWeek.getTime()) return false;
         }
+      }
+
+      // Month filter
+      if (monthFilter !== 'all') {
+        if (!confDate) return false;
+        if (confDate.getMonth() !== parseInt(monthFilter, 10)) return false;
+      }
+
+      // Category filter
+      if (categoryFilter !== 'all') {
+        const parsed = parseMenuData(r.menu);
+        const target = categoryFilter.toLowerCase();
+        const hasCategory = parsed.categories.some(c => String(c.name || '').trim().toLowerCase() === target);
+        if (!hasCategory) return false;
       }
 
       // Pax filter
       if (paxFilter !== 'all') {
-        const pax = Number(r.pax) || 0;
+        const pax = getConfPax(r);
         if (paxFilter === 'small' && pax >= 50) return false;
         if (paxFilter === 'medium' && (pax < 50 || pax > 150)) return false;
         if (paxFilter === 'large' && pax <= 150) return false;
@@ -326,20 +480,20 @@ Pages.menu = (function () {
       // Status filter
       if (statusFilter !== 'all') {
         const st = String(r.status || 'Pending').trim().toLowerCase();
-        if (statusFilter === 'approved' && st !== 'approved') return false;
-        if (statusFilter === 'pending' && st !== 'pending') return false;
+        const isApproved = st === 'approved';
+        if (statusFilter === 'approved' && !isApproved) return false;
+        if (statusFilter === 'pending' && isApproved) return false;
       }
 
       // Text search
       if (q) {
-        const haystack = [
-          r['conference name'],
-          r.date,
-          r.pax,
-          r.menu,
-          r.remarks,
-          r.mid
-        ].join(' ').toLowerCase();
+        const confName = getConfName(r);
+        const mid = String(r.mid || r.MID || r.id || '');
+        const remarks = String(r.remarks || r.Remarks || '');
+        const menuStr = typeof r.menu === 'string' ? r.menu : JSON.stringify(r.menu || '');
+        const dateStr = String(r.date || '');
+        const paxStr = String(r.pax || '');
+        const haystack = [confName, mid, remarks, menuStr, dateStr, paxStr].join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
       }
 
@@ -348,14 +502,16 @@ Pages.menu = (function () {
 
     // Sort list
     list.sort((a, b) => {
-      const dateA = a.date ? new Date(a.date).getTime() : 0;
-      const dateB = b.date ? new Date(b.date).getTime() : 0;
-      const nameA = String(a['conference name'] || '').toLowerCase();
-      const nameB = String(b['conference name'] || '').toLowerCase();
-      const paxA = Number(a.pax) || 0;
-      const paxB = Number(b.pax) || 0;
-      const idA = String(a.mid || '');
-      const idB = String(b.mid || '');
+      const dateAObj = parseConfDate(a.date);
+      const dateBObj = parseConfDate(b.date);
+      const dateA = dateAObj ? dateAObj.getTime() : 0;
+      const dateB = dateBObj ? dateBObj.getTime() : 0;
+      const nameA = getConfName(a).toLowerCase();
+      const nameB = getConfName(b).toLowerCase();
+      const paxA = getConfPax(a);
+      const paxB = getConfPax(b);
+      const idA = String(a.mid || a.MID || a.id || '');
+      const idB = String(b.mid || b.MID || b.id || '');
 
       switch (sortOrder) {
         case 'date_desc':
@@ -402,7 +558,7 @@ Pages.menu = (function () {
       rows: filtered,
       page: page,
       pageSize: pageSize,
-      emptyMsg: searchQuery || timelineFilter !== 'all' || paxFilter !== 'all' || statusFilter !== 'all'
+      emptyMsg: searchQuery || timelineFilter !== 'all' || monthFilter !== 'all' || categoryFilter !== 'all' || paxFilter !== 'all' || statusFilter !== 'all'
         ? 'No conferences match your filter criteria.'
         : 'No conference records found.',
       onPageChange: (newPage) => {
@@ -415,10 +571,13 @@ Pages.menu = (function () {
         render();
       },
       rowRenderer: (r) => {
-        const d = r.date ? new Date(r.date) : null;
-        const isUpcoming = d && !isNaN(d.getTime()) && d >= new Date();
-        const dateFormatted = App.fmtDate(r.date);
-        const dayName = d && !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : '';
+        const confName = getConfName(r);
+        const d = parseConfDate(r.date);
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const isUpcoming = d && d.getTime() >= today.getTime();
+        const dateFormatted = d ? App.fmtDate(d) : App.fmtDate(r.date);
+        const dayName = d ? d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() : '';
 
         const rawStatus = String(r.status || 'Pending').trim();
         const isApproved = rawStatus.toLowerCase() === 'approved';
@@ -461,7 +620,7 @@ Pages.menu = (function () {
           <tr>
             <td><code>${App.esc(r.mid)}</code></td>
             <td>
-              <strong style="color:var(--text);font-size:13.5px;">${App.esc(r['conference name'])}</strong>
+              <strong style="color:var(--text);font-size:13.5px;">${App.esc(confName || '—')}</strong>
             </td>
             <td>
               <div style="display:flex;flex-direction:column;gap:2px;">
@@ -627,7 +786,7 @@ Pages.menu = (function () {
           <div class="menu-builder-meta">
             <label>
               <span>Conference / Event Name *</span>
-              <input type="text" id="builderConfName" placeholder="e.g. Selwyn's 70th Birthday" value="${App.esc(record ? record['conference name'] : '')}">
+              <input type="text" id="builderConfName" placeholder="e.g. Selwyn's 70th Birthday" value="${App.esc(record ? getConfName(record) : '')}">
             </label>
 
             <label>
@@ -963,7 +1122,7 @@ Pages.menu = (function () {
     let isApproved = currentStatus.toLowerCase() === 'approved';
 
     // Document title matching exact style: SELWYN'S 70TH BIRTHDAY(30PAX) – SUNDAY-18/10/2026
-    const sheetHeaderTitle = `${String(record['conference name'] || 'EVENT').toUpperCase()}${paxStr ? `(${paxStr})` : ''} &ndash; ${dayOfWeek ? `${dayOfWeek}-` : ''}${displayDate || ''}`;
+    const sheetHeaderTitle = `${String(getConfName(record) || 'EVENT').toUpperCase()}${paxStr ? `(${paxStr})` : ''} &ndash; ${dayOfWeek ? `${dayOfWeek}-` : ''}${displayDate || ''}`;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop show';
@@ -1153,7 +1312,7 @@ Pages.menu = (function () {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Production Sheet - ${App.esc(record['conference name'] || 'Event')}</title>
+  <title>Production Sheet - ${App.esc(getConfName(record) || 'Event')}</title>
   <style>
     @page {
       size: A4 portrait;

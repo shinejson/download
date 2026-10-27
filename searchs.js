@@ -33,18 +33,36 @@ Pages.search = (function () {
     var e = els();
     if (e.topnavInput && !e.topnavInput.dataset.searchBound) {
       e.topnavInput.dataset.searchBound = 'true';
+
+      var triggerSearch = function () {
+        var q = e.topnavInput.value.trim();
+        if (!q) return;
+        sessionStorage.setItem(SESSION_KEY, q);
+        if (typeof App !== 'undefined' && App.getCurrentPage && App.getCurrentPage() === 'search') {
+          runSearch();
+        } else if (typeof App !== 'undefined' && typeof App.navigate === 'function') {
+          App.navigate('search');
+        }
+      };
+
       e.topnavInput.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') {
           ev.preventDefault();
-          var q = e.topnavInput.value.trim();
-          if (!q) return;
-          sessionStorage.setItem(SESSION_KEY, q);
-          App.navigate('search');
+          triggerSearch();
         }
       });
+
+      var iconEl = document.querySelector('#topnav-search .search-icon');
+      if (iconEl) {
+        iconEl.addEventListener('click', function () {
+          triggerSearch();
+        });
+      }
+
       e.topnavInput.addEventListener('input', function () {
         if (e.topnavClear) e.topnavClear.style.display = e.topnavInput.value.trim() ? 'inline-block' : 'none';
       });
+
       if (e.topnavClear) {
         e.topnavClear.addEventListener('click', function () {
           e.topnavInput.value = '';

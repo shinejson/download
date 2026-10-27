@@ -240,10 +240,10 @@ var App = window.App = (function () {
 
     const brandTextEl = document.getElementById('sidebarBrandName') || document.querySelector('.sidebar-brand span');
     const brandLogoEl = document.getElementById('sidebarBrandLogo') || document.querySelector('.sidebar-brand .logo');
-    const footerEl = document.querySelector('.sidebar-footer');
+    const footerTextEl = document.getElementById('sidebarFooterText') || document.querySelector('.sidebar-footer-text') || document.querySelector('.sidebar-footer');
 
     if (brandTextEl) brandTextEl.textContent = appName;
-    if (footerEl) footerEl.textContent = '© ' + currentYear + ' ' + appName;
+    if (footerTextEl) footerTextEl.textContent = '© ' + currentYear + ' ' + appName;
     if (brandLogoEl) {
       if (logoUrl) {
         brandLogoEl.innerHTML = '<img src="' + esc(logoUrl) + '" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">';
