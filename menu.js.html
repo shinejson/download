@@ -485,6 +485,9 @@ Pages.menu = (function () {
               <button class="btn btn-secondary btn-sm" data-sheet="${App.esc(r.mid)}" title="View/Print Production Sheet">
                 <i class="fa-solid fa-file-invoice"></i> Sheet
               </button>
+              <button class="btn btn-secondary btn-sm" data-download-pdf="${App.esc(r.mid)}" title="Download Production Sheet as PDF">
+                <i class="fa-solid fa-file-arrow-down"></i> PDF
+              </button>
               ${(!isApproved && (canEdit || (App.currentUser && App.currentUser.role === 'admin'))) ? `
                 <button class="btn btn-success btn-sm" data-approve="${App.esc(r.mid)}" title="Approve this conference menu">
                   <i class="fa-solid fa-check"></i> Approve
@@ -500,6 +503,10 @@ Pages.menu = (function () {
 
     wrap.querySelectorAll('[data-sheet]').forEach(b => {
       b.onclick = () => openProductionSheet(records.find(x => String(x.mid) === b.dataset.sheet));
+    });
+
+    wrap.querySelectorAll('[data-download-pdf]').forEach(b => {
+      b.onclick = () => downloadConferencePdf(b.dataset.downloadPdf, b);
     });
 
     wrap.querySelectorAll('[data-approve]').forEach(b => {
@@ -1068,6 +1075,9 @@ Pages.menu = (function () {
                 <i class="fa-solid fa-check"></i> Approve Menu
               </button>
             ` : ''}
+            <button type="button" class="btn btn-secondary" id="sheetDownloadPdfBtn">
+              <i class="fa-solid fa-file-arrow-down"></i> Download PDF
+            </button>
             <button type="button" class="btn btn-primary" id="sheetPrintBtn">
               <i class="fa-solid fa-print"></i> Print Production Sheet (A4)
             </button>
@@ -1112,6 +1122,14 @@ Pages.menu = (function () {
             App.toast(err && err.message ? err.message : 'Failed to approve menu', 'error');
           })
           .approveMenu(record.mid);
+      };
+    }
+
+    // Download PDF button
+    const sheetDownloadPdfBtn = backdrop.querySelector('#sheetDownloadPdfBtn');
+    if (sheetDownloadPdfBtn) {
+      sheetDownloadPdfBtn.onclick = () => {
+        downloadConferencePdf(record.mid, sheetDownloadPdfBtn);
       };
     }
 
@@ -1339,6 +1357,62 @@ Pages.menu = (function () {
     }
   }
 
+  function downloadConferencePdf(mid, btnEl) {
+    if (!mid) return;
+    const originalHtml = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+        }
+        if (!res || !res.base64) {
+          App.toast('Failed to generate PDF document.', 'error');
+          return;
+        }
+
+        try {
+          const byteCharacters = atob(res.base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = res.filename || `Production_Sheet_${mid}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          App.toast('Production sheet PDF downloaded.');
+        } catch (e) {
+          const a = document.createElement('a');
+          a.href = 'data:application/pdf;base64,' + res.base64;
+          a.download = res.filename || `Production_Sheet_${mid}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          App.toast('Production sheet PDF downloaded.');
+        }
+      })
+      .withFailureHandler(err => {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+        }
+        App.toast(err && err.message ? err.message : 'Error generating PDF.', 'error');
+      })
+      .downloadProductionSheetPdf(mid);
+  }
+
   function remove(id) {
     if (!App.can('menu.delete')) {
       App.toast('Permission denied: You cannot delete conference records.', 'error');
@@ -1351,6 +1425,6 @@ Pages.menu = (function () {
       .deleteMenu(id);
   }
 
-  return { init, onShow, load, openMenuBuilder, openProductionSheet, approveConference };
+  return { init, onShow, load, openMenuBuilder, openProductionSheet, approveConference, downloadConferencePdf };
 })();
 </script>

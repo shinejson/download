@@ -15,7 +15,7 @@
     var App = window.App;
   </script>
 </head>
-<body>
+<body data-app-url="<?= appUrl ?>">
   <div id="app"></div>
 
   <!-- SIDEBAR -->
@@ -176,6 +176,8 @@
   <script>
     const INITIAL_PAGE = '<?= page ?>';
     const SHEET_ID = '<?= sheetId ?>';
+    const APP_URL = '<?= appUrl ?>';
+    window.__appUrl__ = APP_URL;
     document.addEventListener('DOMContentLoaded', function () {
       App.init(INITIAL_PAGE);
     });

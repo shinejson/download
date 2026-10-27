@@ -36,6 +36,45 @@ var App = window.App = (function () {
     } catch (e) {}
   }
 
+  function performLogoutRedirect() {
+    sessionStorage.removeItem('conference_records.session');
+    sessionStorage.removeItem('conference_records.auth');
+    try { sessionStorage.clear(); } catch (e) {}
+
+    const appUrl = (window.__appUrl__ && window.__appUrl__.startsWith('http'))
+      ? window.__appUrl__
+      : (document.body.getAttribute('data-app-url') || '');
+
+    function doRedirect(targetUrl) {
+      if (!targetUrl) {
+        window.location.reload();
+        return;
+      }
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      const dest = targetUrl + sep + 'logout=true';
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = dest;
+          return;
+        }
+      } catch (e) {}
+      window.location.href = dest;
+    }
+
+    if (appUrl) {
+      doRedirect(appUrl);
+    } else {
+      google.script.run
+        .withSuccessHandler(function (url) {
+          doRedirect(url);
+        })
+        .withFailureHandler(function () {
+          window.location.reload();
+        })
+        .getAppUrl();
+    }
+  }
+
   function startSessionTimer() {
     const sessionKey = 'conference_records.session';
     const now = Date.now();
@@ -45,11 +84,15 @@ var App = window.App = (function () {
       const last = Number(sessionStorage.getItem(sessionKey) || 0);
       if (!last) return;
       if ((Date.now() - last) > SESSION_TIMEOUT_MS) {
-        sessionStorage.removeItem(sessionKey);
+        window.clearInterval(window.__appSessionTimer__);
         try {
-          google.script.run.withFailureHandler(function () {}).logoutUser();
-        } catch (e) {}
-        window.location.href = (window.__appUrl__ || (window.location.origin + window.location.pathname)) + '?logout=true';
+          google.script.run
+            .withSuccessHandler(function () { performLogoutRedirect(); })
+            .withFailureHandler(function () { performLogoutRedirect(); })
+            .logoutUser();
+        } catch (e) {
+          performLogoutRedirect();
+        }
       }
     }, 30000);
   }
@@ -514,16 +557,19 @@ var App = window.App = (function () {
 
   function logout() {
     if (!window.confirm('Are you sure you want to log out?')) return;
-    google.script.run
-      .withSuccessHandler(() => {
-        sessionStorage.removeItem('conference_records.session');
-        window.location.href = (window.__appUrl__ || (window.location.origin + window.location.pathname)) + '?logout=true';
-      })
-      .withFailureHandler(err => {
-        console.error(err);
-        toast(err && err.message ? err.message : 'Logout failed', 'error');
-      })
-      .logoutUser();
+    try {
+      google.script.run
+        .withSuccessHandler(function () {
+          performLogoutRedirect();
+        })
+        .withFailureHandler(function (err) {
+          console.error('Logout error:', err);
+          performLogoutRedirect();
+        })
+        .logoutUser();
+    } catch (e) {
+      performLogoutRedirect();
+    }
   }
 
   function openChangePasswordModal() {

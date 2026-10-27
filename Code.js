@@ -32,6 +32,7 @@ function doGet(e) {
   const template = HtmlService.createTemplateFromFile('index');
   template.page = page;
   template.sheetId = getActiveSpreadsheetId_();
+  template.appUrl = getAppUrl();
 
   return template.evaluate()
     .setTitle('Conference Records')

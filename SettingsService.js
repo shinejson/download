@@ -151,6 +151,7 @@ function sendConferenceAlert_(action, conferenceRecord) {
 
     if (action === 'create' && settings['email_notify_on_create'] !== 'true') return;
     if (action === 'edit' && settings['email_notify_on_edit'] !== 'true') return;
+    if (action === 'approve' && settings['email_notify_on_edit'] !== 'true' && settings['email_notify_on_create'] !== 'true') return;
     if (action === 'delete' && settings['email_notify_on_delete'] !== 'true') return;
 
     const recipients = String(settings['email_recipients'] || '')
@@ -168,14 +169,31 @@ function sendConferenceAlert_(action, conferenceRecord) {
     const confDate = conferenceRecord && conferenceRecord.date ? String(conferenceRecord.date) : 'N/A';
     const confPax = conferenceRecord && conferenceRecord.pax ? String(conferenceRecord.pax) : 'N/A';
     const confMid = conferenceRecord && conferenceRecord.mid ? String(conferenceRecord.mid) : '';
+    const confStatus = conferenceRecord && conferenceRecord.status ? String(conferenceRecord.status) : (action === 'approve' ? 'Approved' : 'Pending');
 
     const actionLabels = {
       create: 'New Conference Scheduled',
       edit: 'Conference Menu Updated',
+      approve: 'Conference Menu Approved',
       delete: 'Conference Event Deleted'
     };
     const title = actionLabels[action] || 'Conference Event Alert';
     const subject = `${prefix} ${title}: ${confName}`;
+
+    // Attach PDF Production Sheet for menu events (create, edit, approve)
+    let attachments = [];
+    let hasPdfAttachment = false;
+    if (action !== 'delete' && conferenceRecord && conferenceRecord.menu && typeof generateProductionSheetPdf_ === 'function') {
+      try {
+        const pdfBlob = generateProductionSheetPdf_(conferenceRecord);
+        if (pdfBlob) {
+          attachments.push(pdfBlob);
+          hasPdfAttachment = true;
+        }
+      } catch (pdfErr) {
+        console.error('Non-critical: Failed to attach production sheet PDF to alert email:', pdfErr);
+      }
+    }
 
     const htmlBody = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -188,7 +206,7 @@ function sendConferenceAlert_(action, conferenceRecord) {
           </tr>
           <tr style="border-bottom: 1px solid #e5e7eb;">
             <td style="padding: 8px 0; font-weight: bold; color: #4b5563;">MID:</td>
-            <td style="padding: 8px 0; color: #111827;">${confMid}</td>
+            <td style="padding: 8px 0; color: #111827;"><code>${confMid}</code></td>
           </tr>
           <tr style="border-bottom: 1px solid #e5e7eb;">
             <td style="padding: 8px 0; font-weight: bold; color: #4b5563;">Date:</td>
@@ -198,19 +216,37 @@ function sendConferenceAlert_(action, conferenceRecord) {
             <td style="padding: 8px 0; font-weight: bold; color: #4b5563;">Pax:</td>
             <td style="padding: 8px 0; color: #111827;">${confPax} PAX</td>
           </tr>
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 8px 0; font-weight: bold; color: #4b5563;">Status:</td>
+            <td style="padding: 8px 0; color: ${confStatus.toLowerCase() === 'approved' ? '#15803d' : '#b45309'}; font-weight: bold;">${confStatus.toUpperCase()}</td>
+          </tr>
         </table>
+
+        ${hasPdfAttachment ? `
+          <div style="margin: 16px 0; padding: 12px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+            <strong style="color: #15803d; font-size: 13.5px;">📎 Kitchen Catering Production Sheet Attached</strong>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #166534;">
+              The official single-page A4 Kitchen Catering Production Sheet for <strong>${confName}</strong> has been generated and attached to this email as a PDF document for kitchen prep and cooking.
+            </p>
+          </div>
+        ` : ''}
+
         <p style="font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 20px;">
           ${settings['email_signature'] || 'Catering Management System'}
         </p>
       </div>
     `;
 
-    MailApp.sendEmail({
+    const mailPayload = {
       to: recipients.join(','),
       subject: subject,
       name: senderName,
       htmlBody: htmlBody
-    });
+    };
+    if (attachments.length > 0) {
+      mailPayload.attachments = attachments;
+    }
+    MailApp.sendEmail(mailPayload);
   } catch (err) {
     console.error('Non-critical: sendConferenceAlert_ error:', err);
   }

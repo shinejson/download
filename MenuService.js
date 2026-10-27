@@ -105,3 +105,319 @@ function deleteMenu(id) {
   try { sendConferenceAlert_('delete', existing || { mid: id }); } catch (e) {}
   return res;
 }
+
+function escapeXml_(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function parseMenuDataServer_(rawMenu) {
+  if (!rawMenu) return { categories: [], ingredients: [] };
+  if (typeof rawMenu === 'object') {
+    return {
+      categories: Array.isArray(rawMenu.categories) ? rawMenu.categories : [],
+      ingredients: Array.isArray(rawMenu.ingredients) ? rawMenu.ingredients : []
+    };
+  }
+  const str = String(rawMenu).trim();
+  if (str.startsWith('{') && str.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(str);
+      return {
+        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+        ingredients: Array.isArray(parsed.ingredients) ? parsed.ingredients : []
+      };
+    } catch (e) {}
+  }
+  return {
+    categories: [{ name: 'MENU ITEMS', items: str.split(',').map(s => ({ name: s.trim() })).filter(x => x.name) }],
+    ingredients: []
+  };
+}
+
+function generateProductionSheetPdf_(record) {
+  if (!record) throw new Error('No conference record provided');
+  const settings = (typeof getSettingsMap === 'function') ? getSettingsMap() : {};
+
+  const companyName = settings['company_name'] || settings['app_display_name'] || 'Conference Records & Catering';
+  const companyLogo = settings['company_logo'] || '';
+  const companyAddress = settings['company_address'] || '';
+  const companyPhone = settings['company_phone'] || '';
+  const companyEmail = settings['system_email'] || '';
+
+  const confName = String(record['conference name'] || 'EVENT').toUpperCase();
+  const paxStr = record.pax ? `${record.pax}PAX` : '';
+  const mid = record.mid || '';
+  const rawStatus = String(record.status || 'Pending').trim();
+  const isApproved = rawStatus.toLowerCase() === 'approved';
+
+  // Format date and day of week
+  let dayOfWeek = '';
+  let displayDate = '';
+  if (record.date) {
+    try {
+      const d = (record.date instanceof Date) ? record.date : new Date(record.date);
+      if (!isNaN(d.getTime())) {
+        const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+        dayOfWeek = days[d.getDay()];
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        displayDate = `${dd}/${mm}/${yyyy}`;
+      } else {
+        displayDate = String(record.date);
+      }
+    } catch (e) {
+      displayDate = String(record.date);
+    }
+  }
+
+  const titleStr = `${confName}${paxStr ? `(${paxStr})` : ''} – ${dayOfWeek ? `${dayOfWeek}-` : ''}${displayDate || ''}`;
+
+  // Parse menu structure
+  const parsed = parseMenuDataServer_(record.menu);
+
+  // Standalone A4 single-sheet HTML layout
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Production Sheet - ${escapeXml_(confName)}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #111827;
+      background: #ffffff;
+      font-size: 9.5pt;
+      line-height: 1.25;
+    }
+    table.layout-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .brand-bar {
+      border-bottom: 2px solid #111827;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .brand-logo {
+      max-height: 38px;
+      max-width: 110px;
+    }
+    .brand-title {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #111827;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+    }
+    .brand-sub {
+      font-size: 8pt;
+      color: #555555;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 8.5pt;
+      font-weight: bold;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-approved {
+      background-color: #dcfce7;
+      color: #15803d;
+      border: 1px solid #16a34a;
+    }
+    .status-pending {
+      background-color: #fef3c7;
+      color: #b45309;
+      border: 1px solid #f59e0b;
+    }
+    .event-title {
+      text-align: center;
+      font-size: 12pt;
+      font-weight: bold;
+      text-decoration: underline;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 8px 0 10px 0;
+    }
+    .category-title {
+      font-size: 10pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-decoration: underline;
+      margin: 6px 0 2px 0;
+      color: #111827;
+    }
+    .dish-line {
+      font-size: 9.5pt;
+      margin-bottom: 2px;
+      color: #1f2937;
+    }
+    .sub-item {
+      padding-left: 14px;
+      font-size: 9pt;
+      font-style: italic;
+    }
+    .ingredients-box {
+      border: 1.5px solid #111827;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    .ingredients-header {
+      text-align: center;
+      font-size: 10pt;
+      font-weight: bold;
+      letter-spacing: 1px;
+      border-bottom: 1.5px solid #111827;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+    }
+    .ingredient-row {
+      font-size: 9.5pt;
+      padding: 2px 0;
+      border-bottom: 1px dotted #cccccc;
+    }
+    .remarks-box {
+      margin-top: 10px;
+      padding-top: 6px;
+      border-top: 1px dashed #999999;
+      font-size: 9pt;
+      color: #374151;
+    }
+    .footer-bar {
+      margin-top: 8px;
+      padding-top: 4px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 8pt;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <!-- Brand Header -->
+  <table class="layout-table brand-bar">
+    <tr>
+      <td style="vertical-align: middle;">
+        ${companyLogo ? `<img src="${companyLogo}" class="brand-logo" alt="Logo"><br>` : ''}
+        <span class="brand-title">${escapeXml_(companyName)}</span>
+        ${companyAddress ? `<div class="brand-sub">${escapeXml_(companyAddress)}</div>` : ''}
+      </td>
+      <td style="text-align: right; vertical-align: middle;">
+        <span class="status-badge ${isApproved ? 'status-approved' : 'status-pending'}">
+          ${isApproved ? 'APPROVED' : 'PENDING APPROVAL'}
+        </span>
+        <div style="font-size: 8pt; color: #6b7280; margin-top: 4px;">
+          MID: <strong>${escapeXml_(mid)}</strong> | Date: ${escapeXml_(new Date().toLocaleDateString('en-GB'))}
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Event Header Title -->
+  <div class="event-title">
+    ${escapeXml_(titleStr)}
+  </div>
+
+  <!-- 2-Column Content: Left Categories & Dishes, Right Boxed Ingredients -->
+  <table class="layout-table" style="vertical-align: top;">
+    <tr>
+      <td style="width: 58%; vertical-align: top; padding-right: 14px;">
+        ${parsed.categories.map(cat => `
+          <div style="margin-bottom: 6px;">
+            <div class="category-title">${escapeXml_(cat.name)}</div>
+            ${(cat.items || []).map(it => {
+              const pcsPart = it.pcs ? ` (${escapeXml_(it.pcs)})` : '';
+              const weightPart = it.weight ? ` &mdash; ${escapeXml_(it.weight)}${escapeXml_(it.unit || 'kg')}` : '';
+              const notesPart = it.notes ? ` <span style="color:#4b5563;">(${escapeXml_(it.notes)})</span>` : '';
+              const isSubVariant = !!it.notes && it.notes.toLowerCase().indexOf('fish') !== -1;
+              return `
+                <div class="dish-line">
+                  <span>${escapeXml_(it.name)}</span>${pcsPart}${weightPart}${!isSubVariant ? notesPart : ''}
+                </div>
+                ${isSubVariant ? `
+                  <div class="dish-line sub-item">
+                    &bull; ${escapeXml_(it.notes)}${weightPart}
+                  </div>
+                ` : ''}
+              `;
+            }).join('')}
+          </div>
+        `).join('')}
+      </td>
+
+      <td style="width: 42%; vertical-align: top;">
+        <div class="ingredients-box">
+          <div class="ingredients-header">INGREDIENT USE</div>
+          ${parsed.ingredients && parsed.ingredients.length > 0 ? `
+            <table class="layout-table">
+              ${parsed.ingredients.map(ing => `
+                <tr class="ingredient-row">
+                  <td style="padding: 2px 0;">${escapeXml_(ing.name)}</td>
+                  <td style="text-align: right; font-weight: bold; padding: 2px 0;">${escapeXml_(ing.weight)}${escapeXml_(ing.unit || '')}</td>
+                </tr>
+              `).join('')}
+            </table>
+          ` : `
+            <div style="font-size: 8.5pt; color: #6b7280; text-align: center; padding: 12px 0;">
+              <em>No storehouse ingredients recorded</em>
+            </div>
+          `}
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Remarks -->
+  ${record.remarks ? `
+    <div class="remarks-box">
+      <strong>Remarks / Setup Instructions:</strong> ${escapeXml_(record.remarks)}
+    </div>
+  ` : ''}
+
+  <!-- Footer -->
+  <table class="layout-table footer-bar">
+    <tr>
+      <td>${companyPhone ? `Tel: ${escapeXml_(companyPhone)}` : ''} ${companyEmail ? `| Email: ${escapeXml_(companyEmail)}` : ''}</td>
+      <td style="text-align: right;">Catering Production System</td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const safeFileName = `Production_Sheet_${(confName || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_')}_${mid || ''}`;
+  const blob = Utilities.newBlob(html, 'text/html', safeFileName + '.html');
+  const pdfBlob = blob.getAs('application/pdf').setName(safeFileName + '.pdf');
+  return pdfBlob;
+}
+
+function downloadProductionSheetPdf(mid) {
+  requirePermission_('menu.view');
+  const all = readAll_(MENU_SHEET);
+  const record = all.find(r => String(r.mid) === String(mid));
+  if (!record) throw new Error('Conference record not found');
+  const pdfBlob = generateProductionSheetPdf_(record);
+  return {
+    base64: Utilities.base64Encode(pdfBlob.getBytes()),
+    filename: pdfBlob.getName()
+  };
+}
