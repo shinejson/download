@@ -60,6 +60,17 @@
       <div class="page-title" id="topnavTitle">Dashboard</div>
 
       <div class="topnav-actions">
+        <!-- Top Nav Search Bar -->
+        <div id="topnav-search">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
+            <input type="text" class="search-input" id="topnavSearchInput" placeholder="Search items, categories, conferences..." aria-label="Search records">
+            <button class="search-clear-btn" id="topnavSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
         <div class="notification-wrapper">
           <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false" title="Notifications">
             <i class="fa-solid fa-bell"></i>
@@ -142,6 +153,7 @@
       <div id="page-menu" class="page"><?!= include('menu'); ?></div>
       <div id="page-users" class="page"><?!= include('users'); ?></div>
       <div id="page-settings" class="page"><?!= include('settings'); ?></div>
+      <div id="page-search" class="page"><?!= include('search'); ?></div>
     </main>
   </div>
 
@@ -159,6 +171,7 @@
   <?!= include('settings.js'); ?>
   <?!= include('items.js'); ?>
   <?!= include('users.js'); ?>
+  <?!= include('search.js'); ?>
 
   <script>
     const INITIAL_PAGE = '<?= page ?>';

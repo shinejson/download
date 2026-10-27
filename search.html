@@ -1,0 +1,43 @@
+<!-- SEARCH PAGE -->
+<div class="card" id="searchPageRoot">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-magnifying-glass"></i> Search Results</h3>
+    <button class="btn btn-secondary btn-sm" id="searchResetBtn" type="button" title="Clear search">
+      <i class="fa-solid fa-arrow-rotate-left"></i> Clear
+    </button>
+  </div>
+
+  <div class="search-header" id="searchHeader">
+    <div class="search-meta">
+      Found <span class="count" id="searchCount">0</span> result(s)
+      <span id="searchQueryLabel" style="margin-left:8px;"></span>
+    </div>
+  </div>
+
+  <div id="searchEmpty" class="search-empty">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <h3 id="searchEmptyTitle">No results found</h3>
+    <p id="searchEmptyMsg">Try a different keyword or browse Categories, Items, or Conferences.</p>
+  </div>
+
+  <div id="searchResults" class="search-results">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Name</th>
+            <th>ID</th>
+            <th>Details</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="searchResultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="searchLoading" class="loading" style="display:none;">
+    <div class="spinner"></div> Searching records…
+  </div>
+</div>

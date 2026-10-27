@@ -1,10 +1,10 @@
 <script>
 var Pages = window.Pages = window.Pages || {};
 var App = window.App = (function () {
-  const ROUTES = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
+  const ROUTES = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
   const TITLES = {
     dashboard: 'Dashboard', categories: 'Categories', items: 'Items',
-    menu: 'Menu (Conferences)', users: 'Users', settings: 'Settings'
+    menu: 'Menu (Conferences)', users: 'Users', settings: 'Settings', search: 'Search'
   };
 
   let currentPage = 'dashboard';
@@ -24,7 +24,7 @@ var App = window.App = (function () {
   }
 
   function canView(page) {
-    if (!page || page === 'dashboard') return true;
+    if (!page || page === 'dashboard' || page === 'search') return true;
     return can(page + '.view');
   }
 
@@ -391,7 +391,7 @@ var App = window.App = (function () {
     startSessionTimer();
     loadCurrentUser();
 
-    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
+    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
     pageKeys.forEach(k => {
       if (window.Pages && window.Pages[k] && typeof window.Pages[k].init === 'function') {
         try { window.Pages[k].init(); } catch (err) { console.error('Error initializing ' + k + ' page:', err); }

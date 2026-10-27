@@ -346,6 +346,70 @@ function getNotifications() {
   }
 }
 
+/**
+ * Global search across items, categories, and menu (conferences).
+ * Returns normalized results matching the query (case-insensitive, any cell).
+ * Callable from client via google.script.run.searchRecords(query).
+ */
+function searchRecords(query) {
+  try {
+    if (!query || !String(query).trim()) return [];
+    const q = String(query).trim().toLowerCase();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const results = [];
+
+    const sheets = [
+      { name: 'items', type: 'item', nameField: 'Items Name', idField: 'ID', label: 'Item' },
+      { name: 'categories', type: 'category', nameField: 'Categories name', idField: 'ID', label: 'Category' },
+      { name: 'menu', type: 'conference', nameField: 'conference name', idField: 'mid', label: 'Conference' }
+    ];
+
+    sheets.forEach(function (sheet) {
+      try {
+        const rows = readAll_(sheet.name);
+        rows.forEach(function (row) {
+          let matched = false;
+          const matchFields = [];
+          Object.keys(row).forEach(function (key) {
+            const val = row[key];
+            if (val == null) return;
+            const s = String(val);
+            if (s.toLowerCase().indexOf(q) !== -1) {
+              matched = true;
+              matchFields.push(key + ': ' + s);
+            }
+          });
+          if (matched) {
+            results.push({
+              type: sheet.type,
+              id: row[sheet.idField] || row[normKey_(sheet.idField)] || '',
+              name: row[sheet.nameField] || row[normKey_(sheet.nameField)] || '',
+              label: sheet.label,
+              details: matchFields.slice(0, 3).join(' | '),
+              sheet: sheet.name
+            });
+          }
+        });
+      } catch (e) {
+        console.error('searchRecords error for ' + sheet.name, e);
+      }
+    });
+
+    // Sort: name-starts-with query first, then alphabetically
+    results.sort(function (a, b) {
+      const aStarts = a.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+      const bStarts = b.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return a.name.localeCompare(b.name);
+    });
+
+    return results.slice(0, 50);
+  } catch (err) {
+    console.error('searchRecords error', err);
+    return [];
+  }
+}
+
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 function isSessionExpired_() {

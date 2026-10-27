@@ -1,0 +1,149 @@
+var Pages = window.Pages = window.Pages || {};
+Pages.search = (function () {
+  const SESSION_KEY = 'conference_records.search_query';
+  const HIGHLIGHT_PAGE = 'conference_records.highlight_page';
+  const HIGHLIGHT_ID = 'conference_records.highlight_id';
+  const typeIcons = { item: 'fa-boxes-stacked', category: 'fa-layer-group', conference: 'fa-calendar-days' };
+  const typeLabels = { item: 'Item', category: 'Category', conference: 'Conference' };
+
+  function els() {
+    return {
+      body: document.getElementById('searchResultsBody'),
+      empty: document.getElementById('searchEmpty'),
+      results: document.getElementById('searchResults'),
+      count: document.getElementById('searchCount'),
+      queryLabel: document.getElementById('searchQueryLabel'),
+      emptyTitle: document.getElementById('searchEmptyTitle'),
+      emptyMsg: document.getElementById('searchEmptyMsg'),
+      loading: document.getElementById('searchLoading'),
+      resetBtn: document.getElementById('searchResetBtn'),
+      topnavInput: document.getElementById('topnavSearchInput'),
+      topnavClear: document.getElementById('topnavSearchClearBtn')
+    };
+  }
+
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  function bindTopnavSearch() {
+    var e = els();
+    if (e.topnavInput && !e.topnavInput.dataset.searchBound) {
+      e.topnavInput.dataset.searchBound = 'true';
+      e.topnavInput.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          var q = e.topnavInput.value.trim();
+          if (!q) return;
+          sessionStorage.setItem(SESSION_KEY, q);
+          App.navigate('search');
+        }
+      });
+      e.topnavInput.addEventListener('input', function () {
+        if (e.topnavClear) e.topnavClear.style.display = e.topnavInput.value.trim() ? 'inline-block' : 'none';
+      });
+      if (e.topnavClear) {
+        e.topnavClear.addEventListener('click', function () {
+          e.topnavInput.value = '';
+          e.topnavClear.style.display = 'none';
+          e.topnavInput.focus();
+        });
+      }
+    }
+    if (e.resetBtn) {
+      e.resetBtn.addEventListener('click', function () {
+        sessionStorage.removeItem(SESSION_KEY);
+        if (e.topnavInput) { e.topnavInput.value = ''; if (e.topnavClear) e.topnavClear.style.display = 'none'; }
+        render([]);
+      });
+    }
+  }
+
+  function render(results) {
+    var e = els();
+    var q = sessionStorage.getItem(SESSION_KEY) || '';
+    if (e.count) e.count.textContent = String(results && results.length ? results.length : 0);
+    if (e.queryLabel) e.queryLabel.textContent = q ? 'for "' + escapeHtml(q) + '"' : '';
+    if (e.loading) e.loading.style.display = 'none';
+
+    if (!results || results.length === 0) {
+      if (e.results) e.results.classList.remove('visible');
+      if (e.empty) e.empty.classList.add('visible');
+      if (q) {
+        if (e.emptyTitle) e.emptyTitle.textContent = 'No results found';
+        if (e.emptyMsg) e.emptyMsg.textContent = 'No records matched "' + escapeHtml(q) + '" across Items, Categories, or Conferences.';
+      } else {
+        if (e.emptyTitle) e.emptyTitle.textContent = 'Search records';
+        if (e.emptyMsg) e.emptyMsg.textContent = 'Type a keyword in the top search bar to find items, categories, or conferences.';
+      }
+      return;
+    }
+
+    if (e.empty) e.empty.classList.remove('visible');
+    if (e.results) e.results.classList.add('visible');
+
+    var html = results.map(function (r) {
+      var icon = typeIcons[r.type] || 'fa-tag';
+      var label = typeLabels[r.type] || r.type;
+      var detailHtml = '';
+      if (r.details) {
+        detailHtml = '<span class="search-detail" title="' + escapeHtml(r.details) + '">' + escapeHtml(r.details) + '</span>';
+      }
+      return '<tr>' +
+        '<td><span class="type-badge type-' + escapeHtml(r.type) + '"><i class="fa-solid ' + escapeHtml(icon) + '"></i> ' + escapeHtml(label) + '</span></td>' +
+        '<td><strong>' + escapeHtml(r.name) + '</strong></td>' +
+        '<td><code>' + escapeHtml(r.id) + '</code></td>' +
+        '<td>' + detailHtml + '</td>' +
+        '<td><button class="btn btn-primary btn-sm" data-go="' + escapeHtml(r.sheet) + '" data-id="' + escapeHtml(r.id) + '" title="Open record"><i class="fa-solid fa-arrow-right"></i> Go</button></td>' +
+        '</tr>';
+    }).join('');
+    if (e.body) e.body.innerHTML = html;
+
+    if (e.body) {
+      e.body.querySelectorAll('[data-go]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var page = btn.dataset.go;
+          var id = btn.dataset.id;
+          sessionStorage.removeItem(SESSION_KEY);
+          sessionStorage.setItem(HIGHLIGHT_PAGE, page);
+          sessionStorage.setItem(HIGHLIGHT_ID, id);
+          App.navigate(page);
+        });
+      });
+    }
+  }
+
+  function runSearch() {
+    var e = els();
+    var q = sessionStorage.getItem(SESSION_KEY) || '';
+    if (!q) { render([]); return; }
+    if (e.loading) e.loading.style.display = '';
+    if (e.results) e.results.classList.remove('visible');
+    if (e.empty) e.empty.classList.remove('visible');
+    google.script.run
+      .withSuccessHandler(function (results) { render(results || []); })
+      .withFailureHandler(function (err) {
+        if (e.loading) e.loading.style.display = 'none';
+        App.toast('Search failed: ' + (err && err.message ? err.message : String(err)), 'error');
+        render([]);
+      })
+      .searchRecords(q);
+  }
+
+  function applyPendingHighlight() {
+    var page = sessionStorage.getItem(HIGHLIGHT_PAGE);
+    var id = sessionStorage.getItem(HIGHLIGHT_ID);
+    if (page && id) {
+      sessionStorage.removeItem(HIGHLIGHT_PAGE);
+      sessionStorage.removeItem(HIGHLIGHT_ID);
+      App.toast('Opened record ' + id + ' from search results.', 'success');
+    }
+  }
+
+  return {
+    init: function () { bindTopnavSearch(); applyPendingHighlight(); },
+    onShow: function () { bindTopnavSearch(); runSearch(); },
+    runSearch: runSearch
+  };
+})();
