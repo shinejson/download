@@ -2204,6 +2204,165 @@
     background: #ffffff;
   }
 
+  /* ===== In-Page Login Screen Overlay Styles ===== */
+  .login-screen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #1e293b, #0f172a 35%, #111827);
+    color: #e5e7eb;
+    z-index: 999999;
+    padding: 24px;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  .login-shell {
+    width: min(100%, 420px);
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 24px;
+    padding: 32px 28px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(12px);
+    box-sizing: border-box;
+  }
+
+  .login-shell .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-weight: 700;
+    font-size: 1.18rem;
+  }
+
+  .login-shell .brand-logo-img {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    object-fit: contain;
+    background: #ffffff;
+    padding: 4px;
+    box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+  }
+
+  .login-shell .brand-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+    font-size: 20px;
+    color: white;
+  }
+
+  .login-shell h1 {
+    margin: 0 0 6px;
+    font-size: 1.85rem;
+    text-align: center;
+    color: #ffffff;
+    font-weight: 800;
+  }
+
+  .login-shell .subtitle {
+    text-align: center;
+    color: #94a3b8;
+    margin: 0 0 20px;
+    font-size: 0.92rem;
+  }
+
+  .login-shell form {
+    display: grid;
+    gap: 14px;
+  }
+
+  .login-shell .field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .login-shell label {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  .login-shell input[type="text"],
+  .login-shell input[type="password"] {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(15, 23, 42, 0.95);
+    color: #f8fafc;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .login-shell input:focus {
+    border-color: rgba(79, 70, 229, 0.8);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+  }
+
+  .login-shell .input-error {
+    border-color: rgba(239, 68, 68, 0.9) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+  }
+
+  .login-shell .error-message {
+    min-height: 16px;
+    color: #f87171;
+    font-size: 0.78rem;
+    margin-top: 2px;
+  }
+
+  .login-shell .password-toggle-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.95);
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .login-shell .password-toggle-wrap input {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    flex: 1;
+    min-width: 0;
+    box-shadow: none !important;
+  }
+
+  .login-shell .password-toggle {
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    box-shadow: none;
+    font-weight: 600;
+  }
+
+  .login-shell .password-toggle:hover {
+    color: #f8fafc;
+  }
+
   /* Print Media Styles - Engineered to fit exactly on ONE A4 Sheet */
   @media print {
     @page {

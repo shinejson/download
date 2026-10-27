@@ -303,19 +303,25 @@
 
         google.script.run
           .withSuccessHandler(function (result) {
-            if (result && result.ok && result.sid) {
+            if (result && result.ok && result.user) {
               const remember = document.getElementById('rememberMe').checked;
-              sessionStorage.setItem('conference_records.sid', result.sid);
-              sessionStorage.setItem('conference_records.auth', JSON.stringify({
-                username: result.username,
-                role: result.role,
-                sid: result.sid,
-                remember: remember,
-                ts: Date.now()
-              }));
-              sessionStorage.setItem('conference_records.lastActivity', String(Date.now()));
-              const sep = '<?= appUrl ?>'.includes('?') ? '&' : '?';
-              window.location.href = '<?= appUrl ?>' + sep + 'sid=' + encodeURIComponent(result.sid);
+              const authData = {
+                user: result.user,
+                lastActivity: Date.now(),
+                loginTime: Date.now()
+              };
+              sessionStorage.setItem('conference_records_user_auth', JSON.stringify(authData));
+              if (remember) {
+                localStorage.setItem('conference_records_user_auth', JSON.stringify(authData));
+              }
+              const baseUrl = '<?= appUrl ?>'.split('?')[0];
+              try {
+                if (window.top && window.top !== window) {
+                  window.top.location.href = baseUrl;
+                  return;
+                }
+              } catch (e) {}
+              window.location.href = baseUrl;
             } else {
               setError('username', 'Invalid login attempt.');
               setError('password', 'Please check your credentials.');

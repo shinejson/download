@@ -7,10 +7,11 @@ var App = window.App = (function () {
     menu: 'Menu (Conferences)', users: 'Users', settings: 'Settings', search: 'Search'
   };
 
+  const AUTH_STORAGE_KEY = 'conference_records_user_auth';
   let currentPage = 'dashboard';
   let currentUser = null;
   let userPermissions = [];
-  let currentBrandSettings = window.__BRAND_SETTINGS__ || {};
+  let currentBrandSettings = (typeof window.__INITIAL_BRAND__ === 'object' && window.__INITIAL_BRAND__) ? window.__INITIAL_BRAND__ : {};
   const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
   function isStrongPassword(value) {
@@ -19,7 +20,7 @@ var App = window.App = (function () {
   }
 
   function can(permission) {
-    if (!currentUser) return true; // Optimistic default for authenticated session while profile loads
+    if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     return Array.isArray(userPermissions) && userPermissions.includes(permission);
   }
@@ -29,89 +30,196 @@ var App = window.App = (function () {
     return can(page + '.view');
   }
 
-  function getSessionId() {
-    return window.__SESSION_ID__ ||
-      sessionStorage.getItem('conference_records.sid') ||
-      (document.body && document.body.getAttribute('data-sid')) || '';
+  function getStoredAuth() {
+    try {
+      const raw = sessionStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.user || !data.user.username) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveStoredAuth(user, remember) {
+    const data = {
+      user: user,
+      lastActivity: Date.now(),
+      loginTime: Date.now()
+    };
+    const json = JSON.stringify(data);
+    try {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, json);
+      if (remember) {
+        localStorage.setItem(AUTH_STORAGE_KEY, json);
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    } catch (e) {}
+  }
+
+  function clearStoredAuth() {
+    try {
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (e) {}
+    currentUser = null;
+    userPermissions = [];
+  }
+
+  function showLoginScreen(noticeMessage, isError = false) {
+    const loginScreen = document.getElementById('loginScreen');
+    const appShell = document.getElementById('appShell');
+    const noticeBox = document.getElementById('loginNoticeBox');
+    const passwordInput = document.getElementById('appLoginPassword');
+    const usernameInput = document.getElementById('appLoginUsername');
+    const submitBtn = document.getElementById('appLoginSubmitBtn');
+
+    if (appShell) appShell.style.display = 'none';
+    if (loginScreen) {
+      loginScreen.style.display = 'flex';
+      if (noticeBox) {
+        if (noticeMessage) {
+          noticeBox.style.display = 'block';
+          noticeBox.style.background = isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+          noticeBox.style.border = isError ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)';
+          noticeBox.style.color = isError ? '#fca5a5' : '#93c5fd';
+          noticeBox.innerHTML = (isError ? '<i class="fa-solid fa-circle-exclamation"></i> ' : '<i class="fa-solid fa-circle-info"></i> ') + esc(noticeMessage);
+        } else {
+          noticeBox.style.display = 'none';
+          noticeBox.innerHTML = '';
+        }
+      }
+      if (passwordInput) passwordInput.value = '';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+      }
+      if (usernameInput && !usernameInput.value) {
+        setTimeout(() => usernameInput.focus(), 100);
+      } else if (passwordInput) {
+        setTimeout(() => passwordInput.focus(), 100);
+      }
+    }
+  }
+
+  function showAppShell() {
+    const loginScreen = document.getElementById('loginScreen');
+    const appShell = document.getElementById('appShell');
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (appShell) appShell.style.display = 'block';
   }
 
   function refreshSessionTimer() {
-    const sessionKey = 'conference_records.lastActivity';
-    sessionStorage.setItem(sessionKey, String(Date.now()));
-
-    // Throttle server-side touch call to once every 45 seconds to keep the backend session alive
-    const now = Date.now();
-    if (!window.__lastServerTouch__ || (now - window.__lastServerTouch__) > 45000) {
-      window.__lastServerTouch__ = now;
-      try {
-        const sid = getSessionId();
-        google.script.run.withFailureHandler(function () {}).touchSession(sid);
-      } catch (e) {}
-    }
-  }
-
-  function performLogoutRedirect() {
-    sessionStorage.removeItem('conference_records.session');
-    sessionStorage.removeItem('conference_records.auth');
-    sessionStorage.removeItem('conference_records.sid');
-    sessionStorage.removeItem('conference_records.lastActivity');
-    try { sessionStorage.clear(); } catch (e) {}
-
-    const appUrl = (window.__appUrl__ && window.__appUrl__.startsWith('http'))
-      ? window.__appUrl__
-      : (document.body.getAttribute('data-app-url') || '');
-
-    function doRedirect(targetUrl) {
-      if (!targetUrl) {
-        window.location.reload();
-        return;
-      }
-      // Strip any existing ?sid= or ?page= to return strictly to a clean logout state
-      const baseUrl = targetUrl.split('?')[0];
-      const dest = baseUrl + '?logout=true';
-      try {
-        if (window.top && window.top !== window) {
-          window.top.location.href = dest;
-          return;
-        }
-      } catch (e) {}
-      window.location.href = dest;
-    }
-
-    if (appUrl) {
-      doRedirect(appUrl);
-    } else {
-      google.script.run
-        .withSuccessHandler(function (url) {
-          doRedirect(url);
-        })
-        .withFailureHandler(function () {
-          window.location.reload();
-        })
-        .getAppUrl();
-    }
+    const auth = getStoredAuth();
+    if (!auth) return;
+    auth.lastActivity = Date.now();
+    try {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+    } catch (e) {}
   }
 
   function startSessionTimer() {
-    const sessionKey = 'conference_records.lastActivity';
-    sessionStorage.setItem(sessionKey, String(Date.now()));
     window.clearInterval(window.__appSessionTimer__);
-
-    // Dynamic inactivity timeout from settings (default 30 mins)
     const timeoutMins = Number(currentBrandSettings.session_timeout_mins) || 30;
     const timeoutMs = timeoutMins * 60 * 1000;
 
     window.__appSessionTimer__ = window.setInterval(function () {
-      const last = Number(sessionStorage.getItem(sessionKey) || 0);
+      const auth = getStoredAuth();
+      if (!auth) return;
+      const last = Number(auth.lastActivity || 0);
       if (!last) return;
       if ((Date.now() - last) > timeoutMs) {
         window.clearInterval(window.__appSessionTimer__);
-        toast('Your session has expired due to inactivity (' + timeoutMins + ' min limit). Logging out...', 'info');
-        setTimeout(function () {
-          logout(true);
-        }, 1200);
+        clearStoredAuth();
+        showLoginScreen('Your session has expired due to inactivity (' + timeoutMins + ' min limit). Please sign in again.');
       }
-    }, 15000);
+    }, 10000);
+  }
+
+  function bindLoginEvents() {
+    const form = document.getElementById('appLoginForm');
+    const usernameInput = document.getElementById('appLoginUsername');
+    const passwordInput = document.getElementById('appLoginPassword');
+    const togglePasswordBtn = document.getElementById('appLoginTogglePassword');
+    const submitBtn = document.getElementById('appLoginSubmitBtn');
+    const usernameError = document.getElementById('appLoginUsernameError');
+    const passwordError = document.getElementById('appLoginPasswordError');
+
+    if (!form || form.dataset.bound === 'true') return;
+    form.dataset.bound = 'true';
+
+    if (togglePasswordBtn && passwordInput) {
+      togglePasswordBtn.onclick = () => {
+        const isPw = passwordInput.type === 'password';
+        passwordInput.type = isPw ? 'text' : 'password';
+        togglePasswordBtn.textContent = isPw ? 'Hide' : 'Show';
+      };
+    }
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const u = (usernameInput.value || '').trim();
+      const p = passwordInput.value || '';
+
+      if (usernameError) usernameError.textContent = '';
+      if (passwordError) passwordError.textContent = '';
+      if (usernameInput) usernameInput.classList.remove('input-error');
+      if (passwordInput) passwordInput.classList.remove('input-error');
+
+      if (!u) {
+        if (usernameError) usernameError.textContent = 'Username is required.';
+        if (usernameInput) usernameInput.classList.add('input-error');
+        usernameInput.focus();
+        return;
+      }
+      if (!p) {
+        if (passwordError) passwordError.textContent = 'Password is required.';
+        if (passwordInput) passwordInput.classList.add('input-error');
+        passwordInput.focus();
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating...';
+      }
+
+      const remember = document.getElementById('appLoginRememberMe') ? document.getElementById('appLoginRememberMe').checked : true;
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res && res.ok && res.user) {
+            saveStoredAuth(res.user, remember);
+            currentUser = res.user;
+            userPermissions = Array.isArray(res.user.permissions) ? res.user.permissions : [];
+            showAppShell();
+            setTopbarUser(currentUser);
+            applyRolePermissions();
+            startSessionTimer();
+            navigate(currentPage || 'dashboard');
+            toast('Welcome, ' + (res.user.fullName || res.user.username) + '!');
+          } else {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+            }
+            if (passwordError) passwordError.textContent = 'Invalid username or password.';
+            if (passwordInput) passwordInput.classList.add('input-error');
+          }
+        })
+        .withFailureHandler((err) => {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+          }
+          const msg = (err && err.message) ? err.message : 'Authentication failed.';
+          if (passwordError) passwordError.textContent = msg;
+          if (passwordInput) passwordInput.classList.add('input-error');
+        })
+        .authenticateUser(u, p);
+    };
   }
 
   function applyBrandSettings(settings) {
@@ -141,6 +249,21 @@ var App = window.App = (function () {
         brandLogoEl.innerHTML = '<img src="' + esc(logoUrl) + '" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">';
       } else {
         brandLogoEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i>';
+      }
+    }
+
+    // Also update login screen brand elements if present
+    const loginTextEl = document.getElementById('loginBrandName');
+    const loginLogoEl = document.getElementById('loginBrandLogo');
+    const loginSubEl = document.getElementById('loginSubtitle');
+
+    if (loginTextEl) loginTextEl.textContent = appName;
+    if (loginSubEl && getSettingVal('company_tagline')) loginSubEl.textContent = getSettingVal('company_tagline');
+    if (loginLogoEl) {
+      if (logoUrl) {
+        loginLogoEl.innerHTML = '<img src="' + esc(logoUrl) + '" alt="Company Logo" class="brand-logo-img">';
+      } else {
+        loginLogoEl.innerHTML = '<div class="brand-mark"><i class="fa-solid fa-chart-pie"></i></div>';
       }
     }
   }
@@ -223,22 +346,13 @@ var App = window.App = (function () {
   }
 
   function loadCurrentUser() {
-    const sid = getSessionId();
-    google.script.run
-      .withSuccessHandler(function (user) {
-        currentUser = user || { username: '', fullName: '', role: 'viewer', permissions: [] };
-        userPermissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
-        setTopbarUser(currentUser);
-        applyRolePermissions();
-      })
-      .withFailureHandler(function (err) {
-        console.error('Failed to load user profile:', err);
-        currentUser = { username: '', fullName: 'User', role: 'viewer', permissions: [] };
-        userPermissions = [];
-        setTopbarUser(currentUser);
-        applyRolePermissions();
-      })
-      .getCurrentUserProfile(sid);
+    const auth = getStoredAuth();
+    if (auth && auth.user) {
+      currentUser = auth.user;
+      userPermissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+      setTopbarUser(currentUser);
+      applyRolePermissions();
+    }
   }
 
   function applyPasswordToggleToFields() {
@@ -497,10 +611,36 @@ var App = window.App = (function () {
     window.addEventListener('mousemove', refreshSessionTimer);
     window.addEventListener('keydown', refreshSessionTimer);
     window.addEventListener('click', refreshSessionTimer);
+
+    bindLoginEvents();
     applyBrandSettings(currentBrandSettings);
     loadBrandSettings();
+
+    // Check stored user auth in THIS browser
+    const auth = getStoredAuth();
+    if (!auth || !auth.user || !auth.user.username) {
+      showLoginScreen();
+      return;
+    }
+
+    const timeoutMins = Number(currentBrandSettings.session_timeout_mins) || 30;
+    const timeoutMs = timeoutMins * 60 * 1000;
+    if (auth.lastActivity && (Date.now() - auth.lastActivity) > timeoutMs) {
+      clearStoredAuth();
+      showLoginScreen('Your session has expired due to inactivity (' + timeoutMins + ' min limit). Please sign in again.');
+      return;
+    }
+
+    // Refresh last activity for active session
+    auth.lastActivity = Date.now();
+    try { sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth)); } catch (e) {}
+
+    currentUser = auth.user;
+    userPermissions = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+    showAppShell();
+    setTopbarUser(currentUser);
+    applyRolePermissions();
     startSessionTimer();
-    loadCurrentUser();
 
     const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
     pageKeys.forEach(k => {
@@ -581,20 +721,14 @@ var App = window.App = (function () {
 
   function logout(force = false) {
     if (!force && !window.confirm('Are you sure you want to log out?')) return;
-    const sid = getSessionId();
-    try {
-      google.script.run
-        .withSuccessHandler(function () {
-          performLogoutRedirect();
-        })
-        .withFailureHandler(function (err) {
-          console.error('Logout error:', err);
-          performLogoutRedirect();
-        })
-        .logoutUser(sid);
-    } catch (e) {
-      performLogoutRedirect();
+    const auth = getStoredAuth();
+    const sid = (auth && auth.user && auth.user.sid) || '';
+    clearStoredAuth();
+    window.clearInterval(window.__appSessionTimer__);
+    if (sid && window.google && google.script && google.script.run) {
+      try { google.script.run.logoutUser(sid); } catch (e) {}
     }
+    showLoginScreen('You have been logged out successfully.');
   }
 
   function openChangePasswordModal() {

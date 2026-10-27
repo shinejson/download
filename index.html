@@ -3,7 +3,7 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <title><?= (brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></title>
+  <title><?= (typeof brand !== 'undefined' && brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></title>
   <!-- Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <?!= include('styles'); ?>
@@ -13,180 +13,216 @@
     window.App = window.App || {};
     var Pages = window.Pages;
     var App = window.App;
-
-    function safeJsonParse(value, fallback) {
-      try {
-        if (value === undefined || value === null || value === '') return fallback;
-        return JSON.parse(String(value));
-      } catch (e) {
-        return fallback;
-      }
-    }
-
-    var bodyEl = document.body || {};
-    var bodyData = bodyEl.dataset || {};
-    var brandData = bodyData.brand ? decodeURIComponent(bodyData.brand) : '{}';
-
-    window.__SESSION_ID__ = bodyData.sid || '';
-    window.__CURRENT_USER_NAME__ = bodyData.username || '';
-    window.__CURRENT_ROLE__ = bodyData.role || '';
-    window.__BRAND_SETTINGS__ = safeJsonParse(brandData, {});
   </script>
 </head>
-<body data-app-url="<?= appUrl ?>" data-sid="<?= sid || '' ?>" data-username="<?= currentUser || '' ?>" data-role="<?= currentRole || '' ?>" data-brand="<?= encodeURIComponent(JSON.stringify(brand || {})) ?>" data-page="<?= page ?>" data-sheet-id="<?= sheetId || '' ?>">
-  <div id="app"></div>
-
-  <!-- SIDEBAR -->
-  <aside id="sidebar">
-    <div class="sidebar-brand">
-      <div class="logo" id="sidebarBrandLogo">
-        <? if (brand && brand.company_logo) { ?>
-          <img src="<?= brand.company_logo ?>" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">
-        <? } else { ?>
-          <i class="fa-solid fa-chart-pie"></i>
-        <? } ?>
+<body
+  data-app-url="<?= typeof appUrl !== 'undefined' ? appUrl : '' ?>"
+  data-page="<?= typeof page !== 'undefined' ? page : 'dashboard' ?>"
+  data-sheet-id="<?= typeof sheetId !== 'undefined' ? sheetId : '' ?>"
+  data-company-name="<?= (typeof brand !== 'undefined' && brand && brand.company_name) ? brand.company_name : 'Conference Records' ?>"
+  data-company-tagline="<?= (typeof brand !== 'undefined' && brand && brand.company_tagline) ? brand.company_tagline : '' ?>"
+  data-company-logo="<?= (typeof brand !== 'undefined' && brand && brand.company_logo) ? brand.company_logo : '' ?>"
+  data-company-phone="<?= (typeof brand !== 'undefined' && brand && brand.company_phone) ? brand.company_phone : '' ?>"
+  data-company-email="<?= (typeof brand !== 'undefined' && brand && brand.company_email) ? brand.company_email : '' ?>"
+  data-company-currency="<?= (typeof brand !== 'undefined' && brand && brand.company_currency) ? brand.company_currency : '$' ?>"
+  data-session-timeout="<?= (typeof brand !== 'undefined' && brand && brand.session_timeout_mins) ? brand.session_timeout_mins : '30' ?>"
+>
+  <!-- IN-PAGE AUTHENTICATION SCREEN (Zero-Redirect / Multi-User Safe) -->
+  <div id="loginScreen" class="login-screen-overlay" style="display:none;">
+    <div class="login-shell">
+      <div class="brand">
+        <div class="logo" id="loginBrandLogo">
+          <? if (typeof brand !== 'undefined' && brand && brand.company_logo) { ?>
+            <img src="<?= brand.company_logo ?>" alt="Company Logo" class="brand-logo-img">
+          <? } else { ?>
+            <div class="brand-mark"><i class="fa-solid fa-chart-pie"></i></div>
+          <? } ?>
+        </div>
+        <span id="loginBrandName"><?= (typeof brand !== 'undefined' && brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></span>
       </div>
-      <span id="sidebarBrandName"><?= (brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></span>
-    </div>
-    <nav class="sidebar-nav">
-      <a href="#dashboard" data-page="dashboard" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-gauge-high"></i></span><span>Dashboard</span>
-      </a>
-      <a href="#categories" data-page="categories" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-layer-group"></i></span><span>Categories</span>
-      </a>
-      <a href="#items" data-page="items" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-boxes-stacked"></i></span><span>Items</span>
-      </a>
-      <a href="#menu" data-page="menu" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-calendar-days"></i></span><span>Menu</span>
-      </a>
-      <a href="#users" data-page="users" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-users"></i></span><span>Users</span>
-      </a>
-      <a href="#settings" data-page="settings" class="nav-link">
-        <span class="icon"><i class="fa-solid fa-sliders"></i></span><span>Settings</span>
-      </a>
-      <a href="#" data-action="logout" class="nav-link nav-link-action danger">
-        <span class="icon"><i class="fa-solid fa-right-from-bracket"></i></span><span>Logout</span>
-      </a>
-    </nav>
-    <div class="sidebar-footer" id="sidebarFooterText">© 2025 Conference Records</div>
-  </aside>
+      <h1>Sign in</h1>
+      <p class="subtitle" id="loginSubtitle"><?= (typeof brand !== 'undefined' && brand && brand.company_tagline) ? brand.company_tagline : 'Use your username and password to access the app.' ?></p>
 
-  <!-- MAIN -->
-  <div id="main">
-    <!-- TOP NAV -->
-    <header id="topnav">
-      <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar" aria-label="Toggle sidebar">
-        <i class="fa-solid fa-bars"></i>
-      </button>
-      <div class="page-title" id="topnavTitle">Dashboard</div>
+      <div id="loginNoticeBox" style="display:none; padding:10px 14px; border-radius:10px; margin-bottom:14px; font-size:13px; line-height:1.4;"></div>
 
-      <div class="topnav-actions">
-        <!-- Top Nav Search Bar -->
-        <div id="topnav-search">
-          <div class="search-box">
-            <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
-            <input type="text" class="search-input" id="topnavSearchInput" placeholder="Search items, categories, conferences..." aria-label="Search records">
-            <button class="search-clear-btn" id="topnavSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
-          </div>
+      <form id="appLoginForm" novalidate autocomplete="on">
+        <div class="field">
+          <label for="appLoginUsername">Username</label>
+          <input id="appLoginUsername" name="username" type="text" placeholder="Enter your username" autocomplete="username" maxlength="50" required>
+          <div id="appLoginUsernameError" class="error-message"></div>
         </div>
 
-        <div class="notification-wrapper">
-          <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false" title="Notifications">
-            <i class="fa-solid fa-bell"></i>
-            <span class="notification-badge" style="display:none;">0</span>
-          </button>
+        <div class="field">
+          <label for="appLoginPassword">Password</label>
+          <div class="password-toggle-wrap">
+            <input id="appLoginPassword" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" maxlength="128" required>
+            <button type="button" class="password-toggle" id="appLoginTogglePassword">Show</button>
+          </div>
+          <div id="appLoginPasswordError" class="error-message"></div>
+        </div>
 
-          <div class="notification-panel hidden" id="notificationPanel" role="menu" aria-live="polite">
-            <div class="notification-header">
-              <strong>Notifications</strong>
-              <button type="button" class="link-btn" id="markNotificationsRead">Mark all read</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#94a3b8; margin: 4px 0 6px 0;">
+          <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:normal; color:#cbd5e1;">
+            <input type="checkbox" id="appLoginRememberMe" checked style="width:14px;height:14px;margin:0;"> Keep session in browser
+          </label>
+          <span><i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> Secure access</span>
+        </div>
+
+        <button id="appLoginSubmitBtn" type="submit" class="btn btn-primary" style="width:100%; padding:13px; font-weight:700; border-radius:12px; font-size:1rem; margin-top:6px;">
+          <i class="fa-solid fa-right-to-bracket"></i> Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appShell">
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo" id="sidebarBrandLogo">
+          <? if (typeof brand !== 'undefined' && brand && brand.company_logo) { ?>
+            <img src="<?= brand.company_logo ?>" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">
+          <? } else { ?>
+            <i class="fa-solid fa-chart-pie"></i>
+          <? } ?>
+        </div>
+        <span id="sidebarBrandName"><?= (typeof brand !== 'undefined' && brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#dashboard" data-page="dashboard" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-gauge-high"></i></span><span>Dashboard</span>
+        </a>
+        <a href="#categories" data-page="categories" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-layer-group"></i></span><span>Categories</span>
+        </a>
+        <a href="#items" data-page="items" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-boxes-stacked"></i></span><span>Items</span>
+        </a>
+        <a href="#menu" data-page="menu" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-calendar-days"></i></span><span>Menu</span>
+        </a>
+        <a href="#users" data-page="users" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-users"></i></span><span>Users</span>
+        </a>
+        <a href="#settings" data-page="settings" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-sliders"></i></span><span>Settings</span>
+        </a>
+        <a href="#" data-action="logout" class="nav-link nav-link-action danger">
+          <span class="icon"><i class="fa-solid fa-right-from-bracket"></i></span><span>Logout</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="sidebarFooterText">© 2025 Conference Records</div>
+    </aside>
+
+    <!-- MAIN -->
+    <div id="main">
+      <!-- TOP NAV -->
+      <header id="topnav">
+        <button class="toggle-btn" id="sidebarToggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="page-title" id="topnavTitle">Dashboard</div>
+
+        <div class="topnav-actions">
+          <!-- Top Nav Search Bar -->
+          <div id="topnav-search">
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
+              <input type="text" class="search-input" id="topnavSearchInput" placeholder="Search items, categories, conferences..." aria-label="Search records">
+              <button class="search-clear-btn" id="topnavSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
             </div>
-            <div class="notification-list">
-              <div class="notification-item">
-                <div class="notification-dot"></div>
-                <div>
-                  <strong>Loading notifications...</strong>
-                  <small>Please wait</small>
+          </div>
+
+          <div class="notification-wrapper">
+            <button class="topnav-icon notification-btn" id="notificationToggle" type="button" aria-label="Notifications" aria-expanded="false" title="Notifications">
+              <i class="fa-solid fa-bell"></i>
+              <span class="notification-badge" style="display:none;">0</span>
+            </button>
+
+            <div class="notification-panel hidden" id="notificationPanel" role="menu" aria-live="polite">
+              <div class="notification-header">
+                <strong>Notifications</strong>
+                <button type="button" class="link-btn" id="markNotificationsRead">Mark all read</button>
+              </div>
+              <div class="notification-list">
+                <div class="notification-item">
+                  <div class="notification-dot"></div>
+                  <div>
+                    <strong>Loading notifications...</strong>
+                    <small>Please wait</small>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Rebuilt Interactive Profile Dropdown -->
-        <div class="profile-dropdown-wrapper" id="profileDropdownWrapper">
-          <button class="user-profile-btn" id="profileToggle" type="button" aria-haspopup="true" aria-expanded="false" title="Account Menu">
-            <div class="avatar" id="userChipAvatar">A</div>
-            <div class="user-profile-info">
-              <span class="user-profile-name" id="userChipName">Admin</span>
-              <span class="role-badge role-admin" id="userChipRole">ADMIN</span>
-            </div>
-            <i class="fa-solid fa-chevron-down profile-chevron"></i>
-          </button>
-
-          <div class="profile-dropdown hidden" id="profileDropdown" role="menu" aria-label="User profile menu">
-            <div class="profile-dropdown-header">
-              <div class="avatar avatar-lg" id="dropdownAvatar">A</div>
-              <div class="profile-header-details">
-                <strong id="dropdownFullName">System Administrator</strong>
-                <span class="profile-handle" id="dropdownUsername">@admin</span>
-                <span class="role-badge role-admin" id="dropdownRole">ADMIN</span>
+          <!-- Rebuilt Interactive Profile Dropdown -->
+          <div class="profile-dropdown-wrapper" id="profileDropdownWrapper">
+            <button class="user-profile-btn" id="profileToggle" type="button" aria-haspopup="true" aria-expanded="false" title="Account Menu">
+              <div class="avatar" id="userChipAvatar">A</div>
+              <div class="user-profile-info">
+                <span class="user-profile-name" id="userChipName">Admin</span>
+                <span class="role-badge role-admin" id="userChipRole">ADMIN</span>
               </div>
-            </div>
+              <i class="fa-solid fa-chevron-down profile-chevron"></i>
+            </button>
 
-            <div class="profile-dropdown-divider"></div>
+            <div class="profile-dropdown hidden" id="profileDropdown" role="menu" aria-label="User profile menu">
+              <div class="profile-dropdown-header">
+                <div class="avatar avatar-lg" id="dropdownAvatar">A</div>
+                <div class="profile-header-details">
+                  <strong id="dropdownFullName">System Administrator</strong>
+                  <span class="profile-handle" id="dropdownUsername">@admin</span>
+                  <span class="role-badge role-admin" id="dropdownRole">ADMIN</span>
+                </div>
+              </div>
 
-            <div class="profile-dropdown-menu">
-              <button type="button" class="profile-menu-item" id="profileViewDetailsBtn">
-                <i class="fa-solid fa-id-badge"></i>
-                <span>My Account Details</span>
-              </button>
-              <button type="button" class="profile-menu-item" data-action="change-password">
-                <i class="fa-solid fa-key"></i>
-                <span>Change Password</span>
-              </button>
-              <button type="button" class="profile-menu-item" id="profileSettingsBtn" data-page="settings">
-                <i class="fa-solid fa-sliders"></i>
-                <span>Application Settings</span>
-              </button>
-            </div>
+              <div class="profile-dropdown-divider"></div>
 
-            <div class="profile-dropdown-divider"></div>
+              <div class="profile-dropdown-menu">
+                <button type="button" class="profile-menu-item" id="profileViewDetailsBtn">
+                  <i class="fa-solid fa-id-badge"></i>
+                  <span>My Account Details</span>
+                </button>
+                <button type="button" class="profile-menu-item" data-action="change-password">
+                  <i class="fa-solid fa-key"></i>
+                  <span>Change Password</span>
+                </button>
+                <button type="button" class="profile-menu-item" id="profileSettingsBtn" data-page="settings">
+                  <i class="fa-solid fa-sliders"></i>
+                  <span>Application Settings</span>
+                </button>
+              </div>
 
-            <div class="profile-dropdown-footer">
-              <button type="button" class="profile-menu-item danger" data-action="logout">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                <span>Logout</span>
-              </button>
+              <div class="profile-dropdown-divider"></div>
+
+              <div class="profile-dropdown-footer">
+                <button type="button" class="profile-menu-item danger" data-action="logout">
+                  <i class="fa-solid fa-right-from-bracket"></i>
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    <!-- CONTENT -->
-    <main id="content">
-      <div id="page-dashboard" class="page"><?!= include('dashboard'); ?></div>
-      <div id="page-categories" class="page"><?!= include('categories'); ?></div>
-      <div id="page-items" class="page"><?!= include('items'); ?></div>
-      <div id="page-menu" class="page"><?!= include('menu'); ?></div>
-      <div id="page-users" class="page"><?!= include('users'); ?></div>
-      <div id="page-settings" class="page"><?!= include('settings'); ?></div>
-      <div id="page-search" class="page"><?!= include('search'); ?></div>
-    </main>
-  </div>
+      <!-- CONTENT -->
+      <main id="content">
+        <div id="page-dashboard" class="page"><?!= include('dashboard'); ?></div>
+        <div id="page-categories" class="page"><?!= include('categories'); ?></div>
+        <div id="page-items" class="page"><?!= include('items'); ?></div>
+        <div id="page-menu" class="page"><?!= include('menu'); ?></div>
+        <div id="page-users" class="page"><?!= include('users'); ?></div>
+        <div id="page-settings" class="page"><?!= include('settings'); ?></div>
+        <div id="page-search" class="page"><?!= include('search'); ?></div>
+      </main>
+    </div>
+  </div><!-- /#appShell -->
 
   <div id="toast"></div>
-
-  <script>
-    var Pages = window.Pages = window.Pages || {};
-    var App = window.App = window.App || {};
-  </script>
 
   <?!= include('common.js'); ?>
   <?!= include('dashboard.js'); ?>
@@ -198,17 +234,28 @@
   <?!= include('search.js'); ?>
 
   <script>
-    var bodyEl = document.body || {};
-    var bodyData = bodyEl.dataset || {};
-    var INITIAL_PAGE = bodyData.page || 'dashboard';
-    var SHEET_ID = bodyData.sheetId || '';
-    var APP_URL = bodyData.appUrl || '';
-    var SESSION_ID = bodyData.sid || '';
-    window.__appUrl__ = APP_URL;
-    window.__SESSION_ID__ = SESSION_ID;
-    document.addEventListener('DOMContentLoaded', function () {
-      App.init(INITIAL_PAGE);
-    });
+    (function () {
+      var bodyEl = document.body || {};
+      var bodyData = bodyEl.dataset || {};
+      var INITIAL_PAGE = bodyData.page || 'dashboard';
+      var SHEET_ID = bodyData.sheetId || '';
+      var APP_URL = bodyData.appUrl || '';
+      window.__appUrl__ = APP_URL;
+      window.__INITIAL_BRAND__ = {
+        company_name: bodyData.companyName || 'Conference Records',
+        company_tagline: bodyData.companyTagline || '',
+        company_logo: bodyData.companyLogo || '',
+        company_phone: bodyData.companyPhone || '',
+        company_email: bodyData.companyEmail || '',
+        company_currency: bodyData.companyCurrency || '$',
+        session_timeout_mins: bodyData.sessionTimeout || '30'
+      };
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.App && typeof window.App.init === 'function') {
+          window.App.init(INITIAL_PAGE);
+        }
+      });
+    })();
   </script>
 </body>
 </html>

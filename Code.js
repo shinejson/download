@@ -1,48 +1,17 @@
 /**
  * Main entry point for the web app.
- * Serves the HTML with routing based on ?page= query param and isolated ?sid= session token.
+ * Serves the single-page application with dynamic client-side multi-user session management.
+ * Eliminates cross-origin redirect failures and Google Drive authentication conflicts.
  */
 function doGet(e) {
-  const isLogout = e && e.parameter && e.parameter.logout === 'true';
-  const sid = e && e.parameter && e.parameter.sid;
-  const appUrl = getAppUrl();
   const brand = typeof getPublicBrandSettings === 'function' ? getPublicBrandSettings() : { company_name: 'Conference Records' };
-
-  if (isLogout) {
-    if (sid) invalidateSession_(sid);
-    clearLegacySession_();
-    const template = HtmlService.createTemplateFromFile('login');
-    template.appUrl = appUrl;
-    template.brand = brand;
-    return template.evaluate()
-      .setTitle(brand.company_name ? brand.company_name + ' Login' : 'Conference Records Login')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-
-  const session = getValidSession_(sid);
-
-  if (!session) {
-    const template = HtmlService.createTemplateFromFile('login');
-    template.appUrl = appUrl;
-    template.brand = brand;
-    return template.evaluate()
-      .setTitle(brand.company_name ? brand.company_name + ' Login' : 'Conference Records Login')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  }
-
-  // Update activity timestamp for this specific browser session
-  touchSession_(sid);
-
+  const appUrl = getAppUrl();
   const page = (e && e.parameter && e.parameter.page) || 'dashboard';
+
   const template = HtmlService.createTemplateFromFile('index');
   template.page = page;
   template.sheetId = getActiveSpreadsheetId_();
   template.appUrl = appUrl;
-  template.sid = sid;
-  template.currentUser = session.username;
-  template.currentRole = session.role;
   template.brand = brand;
 
   return template.evaluate()

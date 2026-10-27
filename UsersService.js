@@ -359,8 +359,20 @@ function authenticateUser(username, password) {
     PropertiesService.getUserProperties().setProperty('conference_records.username', cleanUser);
   } catch (e) {}
 
+  const fullName = [user.firstname, user.lastname].filter(Boolean).join(' ').trim();
+  const userData = {
+    username: user.username,
+    fullName: fullName || user.username,
+    role: normalizedRole,
+    permissions: getRolePermissions_(normalizedRole),
+    email: user.email || '',
+    contact: user.contact || '',
+    department: user.department || ''
+  };
+
   return {
     ok: true,
+    user: userData,
     username: user.username,
     role: normalizedRole,
     permissions: getRolePermissions_(normalizedRole),
