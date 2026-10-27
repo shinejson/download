@@ -1,50 +1,399 @@
-<div class="card">
-  <div class="card-header-bar">
-    <h3><i class="fa-solid fa-sliders"></i> Application Settings</h3>
-    <button class="btn btn-primary" id="settingsAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Setting
-    </button>
-  </div>
-  <p style="color:var(--text-light); font-size:13px; margin: -6px 0 16px 0;">
-    Centralized key/value configuration store for application-wide behavior and parameters.
-  </p>
+<div class="settings-container">
+  <!-- Settings Header -->
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-header-bar" style="margin-bottom:6px;">
+      <h3><i class="fa-solid fa-sliders"></i> System Settings &amp; Configuration</h3>
+      <span class="system-status-pill" title="Live Google Sheets Configuration Store">
+        <span class="status-indicator-dot"></span> Synchronized
+      </span>
+    </div>
+    <p style="color:var(--text-light); font-size:13px; margin:0 0 16px 0;">
+      Manage your company identity, email alert rules, default catering parameters, and low-level system settings.
+    </p>
 
-  <div class="advanced-filter-bar">
-    <div class="filter-group-main">
-      <div class="search-box">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search setting keys or values...">
-        <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
-          <i class="fa-solid fa-xmark"></i>
+    <!-- Settings Navigation Tabs -->
+    <nav class="settings-nav-tabs" role="tablist" aria-label="Settings navigation">
+      <button type="button" class="settings-tab-btn active" data-tab="company" role="tab" aria-selected="true">
+        <i class="fa-solid fa-building"></i> Company Profile
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="email" role="tab" aria-selected="false">
+        <i class="fa-solid fa-envelope"></i> Email &amp; Alerts
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="setup" role="tab" aria-selected="false">
+        <i class="fa-solid fa-gears"></i> System Setup
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="advanced" role="tab" aria-selected="false">
+        <i class="fa-solid fa-database"></i> Advanced Registry
+      </button>
+    </nav>
+  </div>
+
+  <!-- TAB 1: COMPANY PROFILE -->
+  <div class="settings-tab-pane active" id="tab-company" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-id-card-clip" style="color:var(--primary);"></i> Company &amp; Catering Brand Information
+        </h4>
+        <p class="settings-section-subtitle">
+          These details are displayed on topbars, printed catering production sheets, and outward event notifications.
+        </p>
+      </div>
+
+      <!-- Logo Uploader & Preview -->
+      <div class="settings-form-group full-width" style="margin-bottom: 24px;">
+        <label class="settings-label">
+          <i class="fa-solid fa-image"></i> Company Logo &amp; Avatar
+        </label>
+        <div class="logo-upload-container">
+          <div class="logo-preview-avatar" id="cfgLogoPreviewBox">
+            <i class="fa-solid fa-building-wheat logo-preview-placeholder" id="cfgLogoPlaceholder"></i>
+            <img id="cfgLogoPreviewImg" src="" alt="Company Logo" style="display:none;">
+          </div>
+          <div class="logo-controls">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Logo File
+                <input type="file" id="cfgLogoFileInput" accept="image/*" style="display:none;">
+              </label>
+              <button type="button" class="btn btn-outline btn-sm danger" id="cfgLogoRemoveBtn" style="display:none;">
+                <i class="fa-solid fa-trash-can"></i> Remove
+              </button>
+            </div>
+            <div style="margin-top:6px;">
+              <span class="settings-hint">Or paste a hosted image URL (PNG, JPG, SVG, WebP):</span>
+              <input type="url" class="settings-input" id="cfgCompanyLogo" placeholder="https://example.com/logo.png" style="margin-top:4px;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyName">
+            <i class="fa-solid fa-font"></i> Company / Organization Name <span style="color:var(--danger)">*</span>
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyName" placeholder="e.g. Grand Catering &amp; Events Ltd">
+          <span class="settings-hint">Primary name rendered across invoices and production sheets</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyTagline">
+            <i class="fa-solid fa-quote-left"></i> Tagline or Motto
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyTagline" placeholder="e.g. Premier Culinary &amp; Banquet Solutions">
+          <span class="settings-hint">Subtitle displayed below the company header</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyPhone">
+            <i class="fa-solid fa-phone"></i> Official Phone Number
+          </label>
+          <input type="tel" class="settings-input" id="cfgCompanyPhone" placeholder="e.g. +1 (555) 234-5678">
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyEmail">
+            <i class="fa-solid fa-envelope"></i> Official Support / Contact Email
+          </label>
+          <input type="email" class="settings-input" id="cfgCompanyEmail" placeholder="e.g. catering@example.com">
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyCurrency">
+            <i class="fa-solid fa-coins"></i> Currency Symbol / Code
+          </label>
+          <select class="settings-select" id="cfgCompanyCurrency">
+            <option value="$">$ (USD / CAD / AUD)</option>
+            <option value="GH₵">GH₵ (Ghana Cedi)</option>
+            <option value="€">€ (Euro)</option>
+            <option value="£">£ (British Pound)</option>
+            <option value="₦">₦ (Nigerian Naira)</option>
+            <option value="KSh">KSh (Kenyan Shilling)</option>
+            <option value="₹">₹ (Indian Rupee)</option>
+            <option value="ZAR">R (South African Rand)</option>
+          </select>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyTaxId">
+            <i class="fa-solid fa-receipt"></i> Tax ID / Business Registration
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyTaxId" placeholder="e.g. VAT-89472910">
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgCompanyAddress">
+            <i class="fa-solid fa-location-dot"></i> Kitchen &amp; Headquarters Physical Address
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyAddress" placeholder="e.g. 104 Culinary Boulevard, Suite 300, New York, NY">
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgCompanyFooterNote">
+            <i class="fa-solid fa-clipboard-check"></i> Standard Production Sheet Disclaimer / Note
+          </label>
+          <textarea class="settings-textarea" id="cfgCompanyFooterNote" placeholder="e.g. All raw weights must be cross-checked with kitchen head chef before defrosting."></textarea>
+          <span class="settings-hint">Appears at the bottom of 1-click printable event production sheets</span>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-primary" id="btnSaveCompanyProfile">
+          <i class="fa-solid fa-floppy-disk"></i> Save Company Profile
         </button>
       </div>
     </div>
+  </div>
 
-    <div class="filter-group-controls">
-      <label class="filter-control">
-        <i class="fa-solid fa-bullseye"></i> Search Target:
-        <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
-          <option value="all">Key &amp; Value</option>
-          <option value="key">Key Only</option>
-          <option value="value">Value Only</option>
-        </select>
-      </label>
+  <!-- TAB 2: EMAIL CONFIGURATION & ALERTS -->
+  <div class="settings-tab-pane" id="tab-email" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-at" style="color:var(--primary);"></i> Automated Email Dispatch &amp; Kitchen Alerts
+        </h4>
+        <p class="settings-section-subtitle">
+          Configure real-time Google Mail dispatch rules to alert head chefs, managers, and event coordinators.
+        </p>
+      </div>
 
-      <label class="filter-control">
-        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
-        <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
-          <option value="key_asc">Key (A &rarr; Z)</option>
-          <option value="key_desc">Key (Z &rarr; A)</option>
-        </select>
-      </label>
+      <!-- Master Toggle Switch -->
+      <div class="settings-switch-row">
+        <div class="settings-switch-label">
+          <span class="settings-switch-title">Enable Automatic Email Notifications</span>
+          <span class="settings-switch-desc">Turn on/off automated event dispatch emails via Google Apps Script MailApp</span>
+        </div>
+        <label class="custom-switch">
+          <input type="checkbox" id="cfgEmailNotificationsEnabled">
+          <span class="slider"></span>
+        </label>
+      </div>
 
-      <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
-        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
-      </button>
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgEmailSenderName">
+            <i class="fa-solid fa-signature"></i> Sender Display Name
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailSenderName" placeholder="e.g. Grand Catering Operations">
+          <span class="settings-hint">Name displayed in the recipient's email inbox</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgEmailSubjectPrefix">
+            <i class="fa-solid fa-tag"></i> Email Subject Prefix
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailSubjectPrefix" placeholder="e.g. [Conference Records]">
+          <span class="settings-hint">Prepend identifier tag to all outgoing email subjects</span>
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgEmailRecipients">
+            <i class="fa-solid fa-users-viewfinder"></i> Alert Notification Recipient(s) <span style="color:var(--danger)">*</span>
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailRecipients" placeholder="chef@example.com, manager@example.com, kitchen@example.com">
+          <span class="settings-hint">Separate multiple recipient email addresses with commas</span>
+        </div>
+      </div>
+
+      <!-- Trigger Rules -->
+      <div style="margin-bottom: 20px;">
+        <label class="settings-label" style="margin-bottom: 10px;">
+          <i class="fa-solid fa-bell"></i> Event Trigger Conditions:
+        </label>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-left:4px;">
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnCreate" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>New Conference Scheduled:</strong> Dispatch email immediately when a new conference menu is created</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnEdit" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>Menu Modified:</strong> Dispatch email when dish items or ingredients are updated</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnDelete" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>Event Deleted:</strong> Dispatch cancellation notice when a conference is deleted</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-form-group full-width" style="margin-bottom: 20px;">
+        <label class="settings-label" for="cfgEmailSignature">
+          <i class="fa-solid fa-pen-nib"></i> Email Footer Signature
+        </label>
+        <textarea class="settings-textarea" id="cfgEmailSignature" placeholder="e.g. Grand Catering Management &bull; Automated Kitchen Engine &bull; Please do not reply directly to this email."></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <button type="button" class="btn btn-primary" id="btnSaveEmailConfig">
+          <i class="fa-solid fa-floppy-disk"></i> Save Email Configuration
+        </button>
+      </div>
+
+      <!-- Test Email Dispatch Banner -->
+      <div class="test-email-card">
+        <div class="test-email-title">
+          <i class="fa-solid fa-paper-plane"></i> Verify Email Dispatch
+        </div>
+        <p style="font-size:12.5px;color:#15803d;margin:0 0 10px 0;">
+          Test your Google Apps Script MailApp quota and delivery configuration by sending a verification test message right now.
+        </p>
+        <div class="test-email-flex">
+          <input type="email" class="settings-input" id="cfgTestEmailRecipient" placeholder="Enter recipient email (e.g. you@example.com)" style="max-width:320px;background:#fff;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnSendTestEmail">
+            <i class="fa-solid fa-paper-plane"></i> Send Test Message
+          </button>
+        </div>
+        <div id="cfgTestEmailStatus" style="margin-top:8px;font-size:12.5px;font-weight:600;display:none;"></div>
+      </div>
     </div>
   </div>
 
-  <div id="settingsTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading settings...</div>
+  <!-- TAB 3: SYSTEM SETUP -->
+  <div class="settings-tab-pane" id="tab-setup" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-screwdriver-wrench" style="color:var(--primary);"></i> Application Runtime &amp; Operational Defaults
+        </h4>
+        <p class="settings-section-subtitle">
+          Configure default table paging, inactivity session limits, and master category catalogs.
+        </p>
+      </div>
+
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgAppDisplayName">
+            <i class="fa-solid fa-window-maximize"></i> Application Header Brand Name
+          </label>
+          <input type="text" class="settings-input" id="cfgAppDisplayName" placeholder="Conference Records">
+          <span class="settings-hint">Displayed in top left navigation header</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgSessionTimeoutMins">
+            <i class="fa-solid fa-clock-rotate-left"></i> Inactivity Session Timeout
+          </label>
+          <select class="settings-select" id="cfgSessionTimeoutMins">
+            <option value="15">15 Minutes</option>
+            <option value="30">30 Minutes (Recommended)</option>
+            <option value="60">1 Hour</option>
+            <option value="120">2 Hours</option>
+          </select>
+          <span class="settings-hint">Logs out idle users automatically for security</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgDefaultPageSize">
+            <i class="fa-solid fa-table-list"></i> Default Records Per Page
+          </label>
+          <select class="settings-select" id="cfgDefaultPageSize">
+            <option value="10">10 records</option>
+            <option value="25">25 records</option>
+            <option value="50">50 records</option>
+            <option value="100">100 records</option>
+          </select>
+          <span class="settings-hint">Initial table pagination size across all views</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgDateFormat">
+            <i class="fa-regular fa-calendar-days"></i> Primary Date Format
+          </label>
+          <select class="settings-select" id="cfgDateFormat">
+            <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-10-26)</option>
+            <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 26/10/2026)</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 10/26/2026)</option>
+          </select>
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgDefaultCategories">
+            <i class="fa-solid fa-layer-group"></i> Default Menu Builder Category Presets
+          </label>
+          <textarea class="settings-textarea" id="cfgDefaultCategories" placeholder="STARTER, MAIN DISH, SIDE DISH, DESERT, SIDE ORDERS (A LA CARTE)"></textarea>
+          <span class="settings-hint">Comma-separated standard categories loaded when initiating a new conference menu</span>
+        </div>
+
+        <!-- Database Spreadsheet Integration Card -->
+        <div class="settings-form-group full-width" style="background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+              <strong style="font-size:13.5px;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid fa-table" style="color:#10b981;"></i> Google Sheet Database Connection
+              </strong>
+              <div style="font-size:12px;color:#64748b;margin-top:2px;">
+                Active Sheet ID: <code id="cfgActiveSheetIdDisplay" style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">loading...</code>
+              </div>
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/" id="cfgOpenSheetLink" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Google Sheet
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-primary" id="btnSaveSystemSetup">
+          <i class="fa-solid fa-floppy-disk"></i> Save System Setup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: ADVANCED KEY-VALUE REGISTRY TABLE -->
+  <div class="settings-tab-pane" id="tab-advanced" role="tabpanel">
+    <div class="card">
+      <div class="card-header-bar">
+        <div>
+          <h3><i class="fa-solid fa-database"></i> Low-Level Key-Value Registry</h3>
+          <p style="color:var(--text-light); font-size:12.5px; margin: 4px 0 0 0;">
+            Direct low-level registry of all persistent sheet settings. Edit directly or add custom application parameters.
+          </p>
+        </div>
+        <button class="btn btn-primary" id="settingsAddBtn" type="button">
+          <i class="fa-solid fa-plus"></i> Add Custom Parameter
+        </button>
+      </div>
+
+      <div class="advanced-filter-bar">
+        <div class="filter-group-main">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search registry keys or values...">
+            <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-group-controls">
+          <label class="filter-control">
+            <i class="fa-solid fa-bullseye"></i> Search Target:
+            <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
+              <option value="all">Key &amp; Value</option>
+              <option value="key">Key Only</option>
+              <option value="value">Value Only</option>
+            </select>
+          </label>
+
+          <label class="filter-control">
+            <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+            <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
+              <option value="key_asc">Key (A &rarr; Z)</option>
+              <option value="key_desc">Key (Z &rarr; A)</option>
+            </select>
+          </label>
+
+          <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
+            <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <div id="settingsTableWrap">
+        <div class="loading"><div class="spinner"></div>Loading settings...</div>
+      </div>
+    </div>
   </div>
 </div>

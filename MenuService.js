@@ -56,7 +56,9 @@ function createMenu(data) {
     } catch (e) {}
   }
 
-  return createRow_(MENU_SHEET, data);
+  const created = createRow_(MENU_SHEET, data);
+  try { sendConferenceAlert_('create', created); } catch (e) {}
+  return created;
 }
 
 function updateMenu(id, data) {
@@ -70,10 +72,19 @@ function updateMenu(id, data) {
     } catch (e) {}
   }
 
-  return updateRow_(MENU_SHEET, MENU_ID, id, data);
+  const updated = updateRow_(MENU_SHEET, MENU_ID, id, data);
+  try { sendConferenceAlert_('edit', updated); } catch (e) {}
+  return updated;
 }
 
 function deleteMenu(id) {
   requirePermission_('menu.delete');
-  return deleteRow_(MENU_SHEET, MENU_ID, id);
+  let existing = null;
+  try {
+    const all = readAll_(MENU_SHEET);
+    existing = all.find(r => String(r.mid) === String(id));
+  } catch (e) {}
+  const res = deleteRow_(MENU_SHEET, MENU_ID, id);
+  try { sendConferenceAlert_('delete', existing || { mid: id }); } catch (e) {}
+  return res;
 }

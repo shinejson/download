@@ -2,6 +2,8 @@
 var Pages = window.Pages = window.Pages || {};
 Pages.settings = (function () {
   let records = [];
+  let settingsMap = {};
+  let currentTab = 'company';
   let page = 1;
   let pageSize = 10;
   let searchQuery = '';
@@ -12,67 +14,515 @@ Pages.settings = (function () {
     const pageEl = document.getElementById('page-settings');
     if (!pageEl) return;
 
-    const addBtn = document.getElementById('settingsAddBtn');
-    const wrap = document.getElementById('settingsTableWrap');
-    const searchInput = document.getElementById('settingsSearchInput');
+    const navTabs = pageEl.querySelector('.settings-nav-tabs');
+    const tableWrap = document.getElementById('settingsTableWrap');
 
-    if (!addBtn || !wrap || !searchInput) {
+    if (!navTabs || !tableWrap) {
       pageEl.innerHTML = `
-<div class="card">
-  <div class="card-header-bar">
-    <h3><i class="fa-solid fa-sliders"></i> Application Settings</h3>
-    <button class="btn btn-primary" id="settingsAddBtn" type="button">
-      <i class="fa-solid fa-plus"></i> Add Setting
-    </button>
-  </div>
-  <p style="color:var(--text-light); font-size:13px; margin: -6px 0 16px 0;">
-    Centralized key/value configuration store for application-wide behavior and parameters.
-  </p>
+<div class="settings-container">
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-header-bar" style="margin-bottom:6px;">
+      <h3><i class="fa-solid fa-sliders"></i> System Settings &amp; Configuration</h3>
+      <span class="system-status-pill" title="Live Google Sheets Configuration Store">
+        <span class="status-indicator-dot"></span> Synchronized
+      </span>
+    </div>
+    <p style="color:var(--text-light); font-size:13px; margin:0 0 16px 0;">
+      Manage your company identity, email alert rules, default catering parameters, and low-level system settings.
+    </p>
 
-  <div class="advanced-filter-bar">
-    <div class="filter-group-main">
-      <div class="search-box">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search setting keys or values...">
-        <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
-          <i class="fa-solid fa-xmark"></i>
+    <nav class="settings-nav-tabs" role="tablist" aria-label="Settings navigation">
+      <button type="button" class="settings-tab-btn active" data-tab="company" role="tab" aria-selected="true">
+        <i class="fa-solid fa-building"></i> Company Profile
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="email" role="tab" aria-selected="false">
+        <i class="fa-solid fa-envelope"></i> Email &amp; Alerts
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="setup" role="tab" aria-selected="false">
+        <i class="fa-solid fa-gears"></i> System Setup
+      </button>
+      <button type="button" class="settings-tab-btn" data-tab="advanced" role="tab" aria-selected="false">
+        <i class="fa-solid fa-database"></i> Advanced Registry
+      </button>
+    </nav>
+  </div>
+
+  <!-- TAB 1: COMPANY PROFILE -->
+  <div class="settings-tab-pane active" id="tab-company" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-id-card-clip" style="color:var(--primary);"></i> Company &amp; Catering Brand Information
+        </h4>
+        <p class="settings-section-subtitle">
+          These details are displayed on topbars, printed catering production sheets, and outward event notifications.
+        </p>
+      </div>
+
+      <div class="settings-form-group full-width" style="margin-bottom: 24px;">
+        <label class="settings-label">
+          <i class="fa-solid fa-image"></i> Company Logo &amp; Avatar
+        </label>
+        <div class="logo-upload-container">
+          <div class="logo-preview-avatar" id="cfgLogoPreviewBox">
+            <i class="fa-solid fa-building-wheat logo-preview-placeholder" id="cfgLogoPlaceholder"></i>
+            <img id="cfgLogoPreviewImg" src="" alt="Company Logo" style="display:none;">
+          </div>
+          <div class="logo-controls">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Logo File
+                <input type="file" id="cfgLogoFileInput" accept="image/*" style="display:none;">
+              </label>
+              <button type="button" class="btn btn-outline btn-sm danger" id="cfgLogoRemoveBtn" style="display:none;">
+                <i class="fa-solid fa-trash-can"></i> Remove
+              </button>
+            </div>
+            <div style="margin-top:6px;">
+              <span class="settings-hint">Or paste a hosted image URL (PNG, JPG, SVG, WebP):</span>
+              <input type="url" class="settings-input" id="cfgCompanyLogo" placeholder="https://example.com/logo.png" style="margin-top:4px;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyName">
+            <i class="fa-solid fa-font"></i> Company / Organization Name <span style="color:var(--danger)">*</span>
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyName" placeholder="e.g. Grand Catering &amp; Events Ltd">
+          <span class="settings-hint">Primary name rendered across invoices and production sheets</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyTagline">
+            <i class="fa-solid fa-quote-left"></i> Tagline or Motto
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyTagline" placeholder="e.g. Premier Culinary &amp; Banquet Solutions">
+          <span class="settings-hint">Subtitle displayed below the company header</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyPhone">
+            <i class="fa-solid fa-phone"></i> Official Phone Number
+          </label>
+          <input type="tel" class="settings-input" id="cfgCompanyPhone" placeholder="e.g. +1 (555) 234-5678">
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyEmail">
+            <i class="fa-solid fa-envelope"></i> Official Support / Contact Email
+          </label>
+          <input type="email" class="settings-input" id="cfgCompanyEmail" placeholder="e.g. catering@example.com">
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyCurrency">
+            <i class="fa-solid fa-coins"></i> Currency Symbol / Code
+          </label>
+          <select class="settings-select" id="cfgCompanyCurrency">
+            <option value="$">$ (USD / CAD / AUD)</option>
+            <option value="GH₵">GH₵ (Ghana Cedi)</option>
+            <option value="€">€ (Euro)</option>
+            <option value="£">£ (British Pound)</option>
+            <option value="₦">₦ (Nigerian Naira)</option>
+            <option value="KSh">KSh (Kenyan Shilling)</option>
+            <option value="₹">₹ (Indian Rupee)</option>
+            <option value="ZAR">R (South African Rand)</option>
+          </select>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgCompanyTaxId">
+            <i class="fa-solid fa-receipt"></i> Tax ID / Business Registration
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyTaxId" placeholder="e.g. VAT-89472910">
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgCompanyAddress">
+            <i class="fa-solid fa-location-dot"></i> Kitchen &amp; Headquarters Physical Address
+          </label>
+          <input type="text" class="settings-input" id="cfgCompanyAddress" placeholder="e.g. 104 Culinary Boulevard, Suite 300, New York, NY">
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgCompanyFooterNote">
+            <i class="fa-solid fa-clipboard-check"></i> Standard Production Sheet Disclaimer / Note
+          </label>
+          <textarea class="settings-textarea" id="cfgCompanyFooterNote" placeholder="e.g. All raw weights must be cross-checked with kitchen head chef before defrosting."></textarea>
+          <span class="settings-hint">Appears at the bottom of 1-click printable event production sheets</span>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-primary" id="btnSaveCompanyProfile">
+          <i class="fa-solid fa-floppy-disk"></i> Save Company Profile
         </button>
       </div>
     </div>
+  </div>
 
-    <div class="filter-group-controls">
-      <label class="filter-control">
-        <i class="fa-solid fa-bullseye"></i> Search Target:
-        <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
-          <option value="all">Key &amp; Value</option>
-          <option value="key">Key Only</option>
-          <option value="value">Value Only</option>
-        </select>
-      </label>
+  <!-- TAB 2: EMAIL CONFIGURATION & ALERTS -->
+  <div class="settings-tab-pane" id="tab-email" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-at" style="color:var(--primary);"></i> Automated Email Dispatch &amp; Kitchen Alerts
+        </h4>
+        <p class="settings-section-subtitle">
+          Configure real-time Google Mail dispatch rules to alert head chefs, managers, and event coordinators.
+        </p>
+      </div>
 
-      <label class="filter-control">
-        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
-        <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
-          <option value="key_asc">Key (A &rarr; Z)</option>
-          <option value="key_desc">Key (Z &rarr; A)</option>
-        </select>
-      </label>
+      <div class="settings-switch-row">
+        <div class="settings-switch-label">
+          <span class="settings-switch-title">Enable Automatic Email Notifications</span>
+          <span class="settings-switch-desc">Turn on/off automated event dispatch emails via Google Apps Script MailApp</span>
+        </div>
+        <label class="custom-switch">
+          <input type="checkbox" id="cfgEmailNotificationsEnabled">
+          <span class="slider"></span>
+        </label>
+      </div>
 
-      <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
-        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
-      </button>
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgEmailSenderName">
+            <i class="fa-solid fa-signature"></i> Sender Display Name
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailSenderName" placeholder="e.g. Grand Catering Operations">
+          <span class="settings-hint">Name displayed in the recipient's email inbox</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgEmailSubjectPrefix">
+            <i class="fa-solid fa-tag"></i> Email Subject Prefix
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailSubjectPrefix" placeholder="e.g. [Conference Records]">
+          <span class="settings-hint">Prepend identifier tag to all outgoing email subjects</span>
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgEmailRecipients">
+            <i class="fa-solid fa-users-viewfinder"></i> Alert Notification Recipient(s) <span style="color:var(--danger)">*</span>
+          </label>
+          <input type="text" class="settings-input" id="cfgEmailRecipients" placeholder="chef@example.com, manager@example.com, kitchen@example.com">
+          <span class="settings-hint">Separate multiple recipient email addresses with commas</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label class="settings-label" style="margin-bottom: 10px;">
+          <i class="fa-solid fa-bell"></i> Event Trigger Conditions:
+        </label>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-left:4px;">
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnCreate" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>New Conference Scheduled:</strong> Dispatch email immediately when a new conference menu is created</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnEdit" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>Menu Modified:</strong> Dispatch email when dish items or ingredients are updated</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;">
+            <input type="checkbox" id="cfgNotifyOnDelete" checked style="width:16px;height:16px;accent-color:var(--primary);">
+            <span><strong>Event Deleted:</strong> Dispatch cancellation notice when a conference is deleted</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-form-group full-width" style="margin-bottom: 20px;">
+        <label class="settings-label" for="cfgEmailSignature">
+          <i class="fa-solid fa-pen-nib"></i> Email Footer Signature
+        </label>
+        <textarea class="settings-textarea" id="cfgEmailSignature" placeholder="e.g. Grand Catering Management &bull; Automated Kitchen Engine &bull; Please do not reply directly to this email."></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <button type="button" class="btn btn-primary" id="btnSaveEmailConfig">
+          <i class="fa-solid fa-floppy-disk"></i> Save Email Configuration
+        </button>
+      </div>
+
+      <div class="test-email-card">
+        <div class="test-email-title">
+          <i class="fa-solid fa-paper-plane"></i> Verify Email Dispatch
+        </div>
+        <p style="font-size:12.5px;color:#15803d;margin:0 0 10px 0;">
+          Test your Google Apps Script MailApp quota and delivery configuration by sending a verification test message right now.
+        </p>
+        <div class="test-email-flex">
+          <input type="email" class="settings-input" id="cfgTestEmailRecipient" placeholder="Enter recipient email (e.g. you@example.com)" style="max-width:320px;background:#fff;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnSendTestEmail">
+            <i class="fa-solid fa-paper-plane"></i> Send Test Message
+          </button>
+        </div>
+        <div id="cfgTestEmailStatus" style="margin-top:8px;font-size:12.5px;font-weight:600;display:none;"></div>
+      </div>
     </div>
   </div>
 
-  <div id="settingsTableWrap">
-    <div class="loading"><div class="spinner"></div>Loading settings...</div>
+  <!-- TAB 3: SYSTEM SETUP -->
+  <div class="settings-tab-pane" id="tab-setup" role="tabpanel">
+    <div class="settings-card">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title">
+          <i class="fa-solid fa-screwdriver-wrench" style="color:var(--primary);"></i> Application Runtime &amp; Operational Defaults
+        </h4>
+        <p class="settings-section-subtitle">
+          Configure default table paging, inactivity session limits, and master category catalogs.
+        </p>
+      </div>
+
+      <div class="settings-form-grid">
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgAppDisplayName">
+            <i class="fa-solid fa-window-maximize"></i> Application Header Brand Name
+          </label>
+          <input type="text" class="settings-input" id="cfgAppDisplayName" placeholder="Conference Records">
+          <span class="settings-hint">Displayed in top left navigation header</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgSessionTimeoutMins">
+            <i class="fa-solid fa-clock-rotate-left"></i> Inactivity Session Timeout
+          </label>
+          <select class="settings-select" id="cfgSessionTimeoutMins">
+            <option value="15">15 Minutes</option>
+            <option value="30">30 Minutes (Recommended)</option>
+            <option value="60">1 Hour</option>
+            <option value="120">2 Hours</option>
+          </select>
+          <span class="settings-hint">Logs out idle users automatically for security</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgDefaultPageSize">
+            <i class="fa-solid fa-table-list"></i> Default Records Per Page
+          </label>
+          <select class="settings-select" id="cfgDefaultPageSize">
+            <option value="10">10 records</option>
+            <option value="25">25 records</option>
+            <option value="50">50 records</option>
+            <option value="100">100 records</option>
+          </select>
+          <span class="settings-hint">Initial table pagination size across all views</span>
+        </div>
+
+        <div class="settings-form-group">
+          <label class="settings-label" for="cfgDateFormat">
+            <i class="fa-regular fa-calendar-days"></i> Primary Date Format
+          </label>
+          <select class="settings-select" id="cfgDateFormat">
+            <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-10-26)</option>
+            <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 26/10/2026)</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 10/26/2026)</option>
+          </select>
+        </div>
+
+        <div class="settings-form-group full-width">
+          <label class="settings-label" for="cfgDefaultCategories">
+            <i class="fa-solid fa-layer-group"></i> Default Menu Builder Category Presets
+          </label>
+          <textarea class="settings-textarea" id="cfgDefaultCategories" placeholder="STARTER, MAIN DISH, SIDE DISH, DESERT, SIDE ORDERS (A LA CARTE)"></textarea>
+          <span class="settings-hint">Comma-separated standard categories loaded when initiating a new conference menu</span>
+        </div>
+
+        <div class="settings-form-group full-width" style="background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+              <strong style="font-size:13.5px;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid fa-table" style="color:#10b981;"></i> Google Sheet Database Connection
+              </strong>
+              <div style="font-size:12px;color:#64748b;margin-top:2px;">
+                Active Sheet ID: <code id="cfgActiveSheetIdDisplay" style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">loading...</code>
+              </div>
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/" id="cfgOpenSheetLink" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Google Sheet
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-primary" id="btnSaveSystemSetup">
+          <i class="fa-solid fa-floppy-disk"></i> Save System Setup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: ADVANCED REGISTRY -->
+  <div class="settings-tab-pane" id="tab-advanced" role="tabpanel">
+    <div class="card">
+      <div class="card-header-bar">
+        <div>
+          <h3><i class="fa-solid fa-database"></i> Low-Level Key-Value Registry</h3>
+          <p style="color:var(--text-light); font-size:12.5px; margin: 4px 0 0 0;">
+            Direct low-level registry of all persistent sheet settings. Edit directly or add custom application parameters.
+          </p>
+        </div>
+        <button class="btn btn-primary" id="settingsAddBtn" type="button">
+          <i class="fa-solid fa-plus"></i> Add Custom Parameter
+        </button>
+      </div>
+
+      <div class="advanced-filter-bar">
+        <div class="filter-group-main">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" class="search-input" id="settingsSearchInput" placeholder="Search registry keys or values...">
+            <button class="search-clear-btn" id="settingsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-group-controls">
+          <label class="filter-control">
+            <i class="fa-solid fa-bullseye"></i> Search Target:
+            <select class="filter-select" id="settingsTargetFilter" aria-label="Filter target">
+              <option value="all">Key &amp; Value</option>
+              <option value="key">Key Only</option>
+              <option value="value">Value Only</option>
+            </select>
+          </label>
+
+          <label class="filter-control">
+            <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+            <select class="filter-select" id="settingsSortOrder" aria-label="Sort settings">
+              <option value="key_asc">Key (A &rarr; Z)</option>
+              <option value="key_desc">Key (Z &rarr; A)</option>
+            </select>
+          </label>
+
+          <button type="button" class="btn btn-secondary btn-sm" id="settingsResetFiltersBtn" title="Reset all filters">
+            <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <div id="settingsTableWrap">
+        <div class="loading"><div class="spinner"></div>Loading settings...</div>
+      </div>
+    </div>
   </div>
 </div>`;
       bindEvents();
     }
   }
 
+  function switchTab(tabKey) {
+    currentTab = tabKey;
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      const isMatch = btn.dataset.tab === tabKey;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+    });
+
+    document.querySelectorAll('.settings-tab-pane').forEach(pane => {
+      pane.classList.toggle('active', pane.id === 'tab-' + tabKey);
+    });
+
+    if (tabKey === 'advanced') {
+      renderTable();
+    }
+  }
+
+  function updateLogoPreview(src) {
+    const previewImg = document.getElementById('cfgLogoPreviewImg');
+    const placeholder = document.getElementById('cfgLogoPlaceholder');
+    const removeBtn = document.getElementById('cfgLogoRemoveBtn');
+    const logoInput = document.getElementById('cfgCompanyLogo');
+
+    if (src && String(src).trim()) {
+      if (previewImg) {
+        previewImg.src = src;
+        previewImg.style.display = 'block';
+      }
+      if (placeholder) placeholder.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+      if (logoInput && logoInput.value !== src) logoInput.value = src;
+    } else {
+      if (previewImg) {
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+      }
+      if (placeholder) placeholder.style.display = 'block';
+      if (removeBtn) removeBtn.style.display = 'none';
+      if (logoInput) logoInput.value = '';
+    }
+  }
+
   function bindEvents() {
+    // 1. Tab Navigation
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      btn.onclick = () => switchTab(btn.dataset.tab);
+    });
+
+    // 2. Company Logo File Upload
+    const fileInput = document.getElementById('cfgLogoFileInput');
+    if (fileInput) {
+      fileInput.onchange = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          App.toast('Logo image must be under 2MB.', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          updateLogoPreview(event.target.result);
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+
+    // 3. Company Logo URL input change
+    const logoUrlInput = document.getElementById('cfgCompanyLogo');
+    if (logoUrlInput) {
+      logoUrlInput.oninput = (e) => {
+        updateLogoPreview(e.target.value.trim());
+      };
+    }
+
+    // 4. Logo Remove Button
+    const removeLogoBtn = document.getElementById('cfgLogoRemoveBtn');
+    if (removeLogoBtn) {
+      removeLogoBtn.onclick = () => {
+        updateLogoPreview('');
+        if (fileInput) fileInput.value = '';
+      };
+    }
+
+    // 5. Save Company Profile
+    const saveCompanyBtn = document.getElementById('btnSaveCompanyProfile');
+    if (saveCompanyBtn) {
+      saveCompanyBtn.onclick = () => saveCompanyProfile();
+    }
+
+    // 6. Save Email Config
+    const saveEmailBtn = document.getElementById('btnSaveEmailConfig');
+    if (saveEmailBtn) {
+      saveEmailBtn.onclick = () => saveEmailConfiguration();
+    }
+
+    // 7. Send Test Email
+    const testEmailBtn = document.getElementById('btnSendTestEmail');
+    if (testEmailBtn) {
+      testEmailBtn.onclick = () => sendTestEmailMessage();
+    }
+
+    // 8. Save System Setup
+    const saveSetupBtn = document.getElementById('btnSaveSystemSetup');
+    if (saveSetupBtn) {
+      saveSetupBtn.onclick = () => saveSystemConfiguration();
+    }
+
+    // 9. Advanced Registry Filters & Actions
     const addBtn = document.getElementById('settingsAddBtn');
     if (addBtn) addBtn.onclick = () => openForm();
 
@@ -87,7 +537,7 @@ Pages.settings = (function () {
         searchQuery = e.target.value.trim();
         if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
         page = 1;
-        render();
+        renderTable();
       };
     }
 
@@ -100,7 +550,7 @@ Pages.settings = (function () {
         searchQuery = '';
         clearBtn.style.display = 'none';
         page = 1;
-        render();
+        renderTable();
       };
     }
 
@@ -108,7 +558,7 @@ Pages.settings = (function () {
       targetSelect.onchange = (e) => {
         targetFilter = e.target.value;
         page = 1;
-        render();
+        renderTable();
       };
     }
 
@@ -116,7 +566,7 @@ Pages.settings = (function () {
       sortSelect.onchange = (e) => {
         sortOrder = e.target.value;
         page = 1;
-        render();
+        renderTable();
       };
     }
 
@@ -132,7 +582,7 @@ Pages.settings = (function () {
         if (targetSelect) targetSelect.value = 'all';
         if (sortSelect) sortSelect.value = 'key_asc';
 
-        render();
+        renderTable();
       };
     }
   }
@@ -143,10 +593,16 @@ Pages.settings = (function () {
   }
 
   function updateControls() {
+    const canEdit = App.can('settings.edit');
+    const saveCompanyBtn = document.getElementById('btnSaveCompanyProfile');
+    const saveEmailBtn = document.getElementById('btnSaveEmailConfig');
+    const saveSetupBtn = document.getElementById('btnSaveSystemSetup');
     const addBtn = document.getElementById('settingsAddBtn');
-    if (addBtn) {
-      addBtn.style.display = App.can('settings.edit') ? '' : 'none';
-    }
+
+    if (saveCompanyBtn) saveCompanyBtn.style.display = canEdit ? '' : 'none';
+    if (saveEmailBtn) saveEmailBtn.style.display = canEdit ? '' : 'none';
+    if (saveSetupBtn) saveSetupBtn.style.display = canEdit ? '' : 'none';
+    if (addBtn) addBtn.style.display = canEdit ? '' : 'none';
   }
 
   function onShow() {
@@ -171,51 +627,266 @@ Pages.settings = (function () {
   function load() {
     updateControls();
     const wrap = getTableWrap();
-    if (!wrap) return;
-    wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading settings...</div>';
+    if (wrap) wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading configuration store...</div>';
+
     google.script.run
-      .withSuccessHandler(data => { records = data || []; render(); })
+      .withSuccessHandler(data => {
+        records = data || [];
+        settingsMap = {};
+        records.forEach(r => {
+          const k = String(r.key || '').trim();
+          if (k) settingsMap[k] = r.value !== undefined && r.value !== null ? String(r.value) : '';
+        });
+
+        populateFormFields();
+        renderTable();
+      })
       .withFailureHandler(err => {
         if (wrap) wrap.innerHTML = `<div class="empty-state" style="color:var(--danger)">${App.esc(err.message)}</div>`;
       })
       .getSettings();
+
+    // Populate Sheet Database Link
+    const sheetId = window.__sheetId__ || (typeof SHEET_ID !== 'undefined' ? SHEET_ID : '');
+    const sheetDisplay = document.getElementById('cfgActiveSheetIdDisplay');
+    const sheetLink = document.getElementById('cfgOpenSheetLink');
+    if (sheetDisplay && sheetId) sheetDisplay.textContent = sheetId;
+    if (sheetLink && sheetId) sheetLink.href = 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(sheetId);
+  }
+
+  function populateFormFields() {
+    // 1. Company Profile
+    const setVal = (id, k, fallback = '') => {
+      const el = document.getElementById(id);
+      if (el) el.value = settingsMap[k] !== undefined ? settingsMap[k] : fallback;
+    };
+    const setCheck = (id, k, fallback = false) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = settingsMap[k] !== undefined ? settingsMap[k] === 'true' : fallback;
+    };
+
+    setVal('cfgCompanyName', 'company_name', 'Conference Records Catering');
+    setVal('cfgCompanyTagline', 'company_tagline', 'Premier Culinary & Event Solutions');
+    setVal('cfgCompanyPhone', 'company_phone', '');
+    setVal('cfgCompanyEmail', 'company_email', '');
+    setVal('cfgCompanyAddress', 'company_address', '');
+    setVal('cfgCompanyCurrency', 'company_currency', '$');
+    setVal('cfgCompanyTaxId', 'company_tax_id', '');
+    setVal('cfgCompanyFooterNote', 'company_footer_note', 'All catering orders and weight portions subject to kitchen head chef confirmation.');
+
+    updateLogoPreview(settingsMap['company_logo'] || '');
+
+    // 2. Email Configuration
+    setCheck('cfgEmailNotificationsEnabled', 'email_notifications_enabled', false);
+    setVal('cfgEmailSenderName', 'email_sender_name', settingsMap['company_name'] || 'Conference Management');
+    setVal('cfgEmailSubjectPrefix', 'email_subject_prefix', '[Conference Records]');
+    setVal('cfgEmailRecipients', 'email_recipients', '');
+    setCheck('cfgNotifyOnCreate', 'email_notify_on_create', true);
+    setCheck('cfgNotifyOnEdit', 'email_notify_on_edit', true);
+    setCheck('cfgNotifyOnDelete', 'email_notify_on_delete', true);
+    setVal('cfgEmailSignature', 'email_signature', 'Automated Kitchen Production System');
+
+    // 3. System Setup
+    setVal('cfgAppDisplayName', 'app_display_name', 'Conference Records');
+    setVal('cfgSessionTimeoutMins', 'session_timeout_mins', '30');
+    setVal('cfgDefaultPageSize', 'default_page_size', '10');
+    setVal('cfgDateFormat', 'date_format', 'YYYY-MM-DD');
+    setVal('cfgDefaultCategories', 'default_categories', 'STARTER, MAIN DISH, SIDE DISH, DESERT, SIDE ORDERS (A LA CARTE)');
+
+    // Reflect brand name in topbar
+    if (settingsMap['app_display_name']) {
+      const topTitle = document.getElementById('topnavTitle');
+      if (topTitle && topTitle.textContent === 'Conference Records') {
+        topTitle.textContent = settingsMap['app_display_name'];
+      }
+    }
+  }
+
+  function saveCompanyProfile() {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot edit settings.', 'error');
+      return;
+    }
+
+    const companyName = (document.getElementById('cfgCompanyName') || {}).value || '';
+    if (!companyName.trim()) {
+      App.toast('Company name is required.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnSaveCompanyProfile');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    const payload = {
+      company_name: companyName.trim(),
+      company_tagline: ((document.getElementById('cfgCompanyTagline') || {}).value || '').trim(),
+      company_logo: ((document.getElementById('cfgCompanyLogo') || {}).value || '').trim(),
+      company_phone: ((document.getElementById('cfgCompanyPhone') || {}).value || '').trim(),
+      company_email: ((document.getElementById('cfgCompanyEmail') || {}).value || '').trim(),
+      company_currency: ((document.getElementById('cfgCompanyCurrency') || {}).value || '$').trim(),
+      company_tax_id: ((document.getElementById('cfgCompanyTaxId') || {}).value || '').trim(),
+      company_address: ((document.getElementById('cfgCompanyAddress') || {}).value || '').trim(),
+      company_footer_note: ((document.getElementById('cfgCompanyFooterNote') || {}).value || '').trim()
+    };
+
+    google.script.run
+      .withSuccessHandler(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Company Profile';
+        App.toast('Company profile saved successfully.');
+        load();
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Company Profile';
+        App.toast(err && err.message ? err.message : 'Failed to save company settings.', 'error');
+      })
+      .saveSettingsBatch(payload);
+  }
+
+  function saveEmailConfiguration() {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot edit settings.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnSaveEmailConfig');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    const payload = {
+      email_notifications_enabled: String(document.getElementById('cfgEmailNotificationsEnabled').checked),
+      email_sender_name: ((document.getElementById('cfgEmailSenderName') || {}).value || '').trim(),
+      email_subject_prefix: ((document.getElementById('cfgEmailSubjectPrefix') || {}).value || '').trim(),
+      email_recipients: ((document.getElementById('cfgEmailRecipients') || {}).value || '').trim(),
+      email_notify_on_create: String(document.getElementById('cfgNotifyOnCreate').checked),
+      email_notify_on_edit: String(document.getElementById('cfgNotifyOnEdit').checked),
+      email_notify_on_delete: String(document.getElementById('cfgNotifyOnDelete').checked),
+      email_signature: ((document.getElementById('cfgEmailSignature') || {}).value || '').trim()
+    };
+
+    google.script.run
+      .withSuccessHandler(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Email Configuration';
+        App.toast('Email notification configuration saved.');
+        load();
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Email Configuration';
+        App.toast(err && err.message ? err.message : 'Failed to save email settings.', 'error');
+      })
+      .saveSettingsBatch(payload);
+  }
+
+  function sendTestEmailMessage() {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot test emails.', 'error');
+      return;
+    }
+
+    const input = document.getElementById('cfgTestEmailRecipient');
+    const statusEl = document.getElementById('cfgTestEmailStatus');
+    const recipient = input ? input.value.trim() : '';
+
+    if (!recipient || !recipient.includes('@')) {
+      App.toast('Please enter a valid recipient email address.', 'error');
+      if (input) input.focus();
+      return;
+    }
+
+    const btn = document.getElementById('btnSendTestEmail');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = '#2563eb';
+      statusEl.textContent = 'Connecting to Google Apps Script MailApp service...';
+    }
+
+    google.script.run
+      .withSuccessHandler((res) => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Test Message';
+        if (statusEl) {
+          statusEl.style.color = '#16a34a';
+          statusEl.textContent = `✓ Verification email successfully sent to ${res.recipient}! Check your inbox.`;
+        }
+        App.toast('Test email delivered successfully.');
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Test Message';
+        if (statusEl) {
+          statusEl.style.color = '#dc2626';
+          statusEl.textContent = `✗ Failed to send: ${err.message}`;
+        }
+        App.toast('Test email failed: ' + err.message, 'error');
+      })
+      .sendTestEmail(recipient);
+  }
+
+  function saveSystemConfiguration() {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot edit settings.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnSaveSystemSetup');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    const payload = {
+      app_display_name: ((document.getElementById('cfgAppDisplayName') || {}).value || '').trim(),
+      session_timeout_mins: ((document.getElementById('cfgSessionTimeoutMins') || {}).value || '30').trim(),
+      default_page_size: ((document.getElementById('cfgDefaultPageSize') || {}).value || '10').trim(),
+      date_format: ((document.getElementById('cfgDateFormat') || {}).value || 'YYYY-MM-DD').trim(),
+      default_categories: ((document.getElementById('cfgDefaultCategories') || {}).value || '').trim()
+    };
+
+    google.script.run
+      .withSuccessHandler(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save System Setup';
+        App.toast('System runtime setup saved.');
+        load();
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save System Setup';
+        App.toast(err && err.message ? err.message : 'Failed to save system setup.', 'error');
+      })
+      .saveSettingsBatch(payload);
   }
 
   function getFilteredAndSorted() {
     const q = searchQuery.toLowerCase();
 
     let list = records.filter(r => {
-      const key = String(r.key || '').toLowerCase();
-      const value = String(r.value || '').toLowerCase();
+      const k = String(r.key || '');
+      const v = String(r.value !== undefined && r.value !== null ? r.value : '');
 
       if (q) {
-        if (targetFilter === 'key') {
-          if (!key.includes(q)) return false;
-        } else if (targetFilter === 'value') {
-          if (!value.includes(q)) return false;
-        } else {
-          if (!key.includes(q) && !value.includes(q)) return false;
-        }
+        if (targetFilter === 'key' && !k.toLowerCase().includes(q)) return false;
+        if (targetFilter === 'value' && !v.toLowerCase().includes(q)) return false;
+        if (targetFilter === 'all' && !k.toLowerCase().includes(q) && !v.toLowerCase().includes(q)) return false;
       }
-
       return true;
     });
 
-    // Sort list
     list.sort((a, b) => {
       const keyA = String(a.key || '').toLowerCase();
       const keyB = String(b.key || '').toLowerCase();
-
-      if (sortOrder === 'key_desc') {
-        return keyB.localeCompare(keyA);
-      }
-      return keyA.localeCompare(keyB);
+      return sortOrder === 'key_desc' ? keyB.localeCompare(keyA) : keyA.localeCompare(keyB);
     });
 
     return list;
   }
 
-  function render() {
+  function renderTable() {
     updateControls();
     const wrap = getTableWrap();
     if (!wrap) return;
@@ -223,8 +894,8 @@ Pages.settings = (function () {
     const filtered = getFilteredAndSorted();
     const canEdit = App.can('settings.edit');
     const headers = canEdit
-      ? ['Setting Key', 'Value', 'Actions']
-      : ['Setting Key', 'Value'];
+      ? ['Parameter Key', 'Value', 'Actions']
+      : ['Parameter Key', 'Value'];
 
     App.renderPaginatedTable({
       container: wrap,
@@ -232,34 +903,64 @@ Pages.settings = (function () {
       rows: filtered,
       page: page,
       pageSize: pageSize,
-      emptyMsg: searchQuery
-        ? 'No settings match your search.'
-        : 'No settings configured yet.',
+      emptyMsg: searchQuery || targetFilter !== 'all'
+        ? 'No registry settings match your search.'
+        : 'No settings configured yet in this spreadsheet.',
       onPageChange: (newPage) => {
         page = newPage;
-        render();
+        renderTable();
       },
       onPageSizeChange: (newSize) => {
         pageSize = newSize;
         page = 1;
-        render();
+        renderTable();
       },
-      rowRenderer: (r) => `
-        <tr>
-          <td><code style="font-weight:600;color:var(--primary);">${App.esc(r.key)}</code></td>
-          <td style="max-width:320px;word-break:break-word;">${App.esc(r.value)}</td>
-          ${canEdit ? `
-            <td class="actions-cell">
-              <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}" title="Edit setting"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+      rowRenderer: (r) => {
+        const valStr = String(r.value != null ? r.value : '');
+        const isLong = valStr.length > 55;
+        const isImage = valStr.startsWith('data:image') || valStr.match(/\.(png|jpg|jpeg|svg|webp)(\?.*)?$/i);
+
+        return `
+          <tr>
+            <td>
+              <code style="font-weight:600;color:#1e3a8a;background:#eff6ff;padding:2px 8px;border-radius:4px;">
+                ${App.esc(r.key)}
+              </code>
             </td>
-          ` : ''}
-        </tr>
-      `
+            <td>
+              ${isImage ? `
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <img src="${App.esc(valStr)}" style="height:26px;max-width:80px;object-fit:contain;border:1px solid #cbd5e1;border-radius:4px;background:#fff;" alt="preview">
+                  <small style="color:var(--text-light);font-size:11px;">(Image / Logo)</small>
+                </div>
+              ` : `
+                <span title="${App.esc(valStr)}" style="display:inline-block;max-width:380px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  ${App.esc(valStr)}
+                </span>
+              `}
+            </td>
+            ${canEdit ? `
+              <td class="actions-cell">
+                <button class="btn btn-secondary btn-sm" data-edit="${App.esc(r.key)}" title="Edit parameter value">
+                  <i class="fa-solid fa-pen-to-square"></i> Edit
+                </button>
+                <button class="btn btn-danger btn-sm" data-del="${App.esc(r.key)}" title="Delete parameter">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </td>
+            ` : ''}
+          </tr>
+        `;
+      }
     });
 
     if (canEdit) {
       wrap.querySelectorAll('[data-edit]').forEach(b => {
         b.onclick = () => openForm(records.find(x => String(x.key) === b.dataset.edit));
+      });
+
+      wrap.querySelectorAll('[data-del]').forEach(b => {
+        b.onclick = () => remove(b.dataset.del);
       });
     }
   }
@@ -271,21 +972,54 @@ Pages.settings = (function () {
     }
     const isEdit = !!record;
     App.openModal({
-      title: isEdit ? 'Edit Setting' : 'New Setting',
+      title: isEdit ? 'Edit Setting Parameter' : 'New Setting Parameter',
       fields: [
-        { name: 'key', label: 'Key', value: record ? record.key : '', readonly: isEdit },
-        { name: 'value', label: 'Value', type: 'textarea', value: record ? record.value : '' }
+        {
+          name: 'key',
+          label: 'Setting Key',
+          value: record ? record.key : '',
+          type: 'text',
+          readonly: isEdit
+        },
+        {
+          name: 'value',
+          label: 'Setting Value',
+          value: record ? (record.value != null ? record.value : '') : '',
+          type: 'textarea'
+        }
       ],
       onSave: (data) => new Promise((resolve, reject) => {
-        if (!data.key) return reject(new Error('Key is required'));
+        if (!data.key || !String(data.key).trim()) {
+          return reject(new Error('Key cannot be empty'));
+        }
         google.script.run
-          .withSuccessHandler(() => { App.toast('Setting saved'); load(); resolve(); })
+          .withSuccessHandler(() => {
+            App.toast('Setting saved successfully');
+            load();
+            resolve();
+          })
           .withFailureHandler(reject)
-          .saveSetting(data.key, data.value || '');
+          .saveSetting(data.key.trim(), data.value != null ? String(data.value) : '');
       })
     });
   }
 
-  return { init, onShow, load };
+  function remove(key) {
+    if (!App.can('settings.edit')) {
+      App.toast('Permission denied: You cannot delete settings.', 'error');
+      return;
+    }
+    if (!window.confirm(`Delete configuration parameter "${key}"?`)) return;
+
+    google.script.run
+      .withSuccessHandler(() => {
+        App.toast('Setting parameter deleted');
+        load();
+      })
+      .withFailureHandler(err => App.toast(err.message, 'error'))
+      .deleteSetting(key);
+  }
+
+  return { init, onShow, load, switchTab };
 })();
 </script>
