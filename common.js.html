@@ -504,16 +504,20 @@ var App = window.App = (function () {
           }
         }
       } else {
-        const shouldHide = !!collapsed;
-        sidebar.classList.toggle('hidden', shouldHide);
-        if (main) main.classList.toggle('full', shouldHide);
+        const isCollapsed = !!collapsed;
+        sidebar.classList.toggle('collapsed', isCollapsed);
+        sidebar.classList.remove('hidden');
+        if (main) {
+          main.classList.toggle('sidebar-collapsed', isCollapsed);
+          main.classList.remove('full');
+        }
         if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
         if (sidebarToggle) {
-          sidebarToggle.setAttribute('aria-expanded', String(!shouldHide));
-          sidebarToggle.title = shouldHide ? 'Expand sidebar' : 'Collapse sidebar';
+          sidebarToggle.setAttribute('aria-expanded', String(!isCollapsed));
+          sidebarToggle.title = isCollapsed ? 'Restore full sidebar' : 'Collapse sidebar to icons';
         }
         try {
-          localStorage.setItem('sidebar_collapsed', shouldHide ? 'true' : 'false');
+          localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
         } catch (e) {}
       }
     }
@@ -527,8 +531,8 @@ var App = window.App = (function () {
           const isOpen = sidebar && sidebar.classList.contains('mobile-open');
           setSidebarCollapsed(isOpen);
         } else {
-          const isHidden = sidebar && sidebar.classList.contains('hidden');
-          setSidebarCollapsed(!isHidden);
+          const isCollapsed = sidebar && sidebar.classList.contains('collapsed');
+          setSidebarCollapsed(!isCollapsed);
         }
       });
     }
@@ -547,9 +551,7 @@ var App = window.App = (function () {
       try {
         saved = localStorage.getItem('sidebar_collapsed') === 'true';
       } catch (e) {}
-      if (saved) {
-        setSidebarCollapsed(true);
-      }
+      setSidebarCollapsed(saved);
     }
 
     window.addEventListener('resize', () => {
