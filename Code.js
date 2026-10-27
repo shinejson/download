@@ -1,41 +1,52 @@
 /**
  * Main entry point for the web app.
- * Serves the HTML with routing based on ?page= query param.
+ * Serves the HTML with routing based on ?page= query param and isolated ?sid= session token.
  */
 function doGet(e) {
   const isLogout = e && e.parameter && e.parameter.logout === 'true';
-  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+  const sid = e && e.parameter && e.parameter.sid;
+  const appUrl = getAppUrl();
+  const brand = typeof getPublicBrandSettings === 'function' ? getPublicBrandSettings() : { company_name: 'Conference Records' };
 
   if (isLogout) {
-    clearSession_();
+    if (sid) invalidateSession_(sid);
+    clearLegacySession_();
     const template = HtmlService.createTemplateFromFile('login');
-    template.appUrl = getAppUrl();
+    template.appUrl = appUrl;
+    template.brand = brand;
     return template.evaluate()
-      .setTitle('Conference Records Login')
+      .setTitle(brand.company_name ? brand.company_name + ' Login' : 'Conference Records Login')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  if (!username || isSessionExpired_()) {
-    clearSession_();
+  const session = getValidSession_(sid);
+
+  if (!session) {
     const template = HtmlService.createTemplateFromFile('login');
-    template.appUrl = getAppUrl();
+    template.appUrl = appUrl;
+    template.brand = brand;
     return template.evaluate()
-      .setTitle('Conference Records Login')
+      .setTitle(brand.company_name ? brand.company_name + ' Login' : 'Conference Records Login')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  PropertiesService.getUserProperties().setProperty('conference_records.lastActivity', String(Date.now()));
+  // Update activity timestamp for this specific browser session
+  touchSession_(sid);
 
   const page = (e && e.parameter && e.parameter.page) || 'dashboard';
   const template = HtmlService.createTemplateFromFile('index');
   template.page = page;
   template.sheetId = getActiveSpreadsheetId_();
-  template.appUrl = getAppUrl();
+  template.appUrl = appUrl;
+  template.sid = sid;
+  template.currentUser = session.username;
+  template.currentRole = session.role;
+  template.brand = brand;
 
   return template.evaluate()
-    .setTitle('Conference Records')
+    .setTitle(brand.company_name || 'Conference Records')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -415,27 +426,148 @@ function searchRecords(query) {
   }
 }
 
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+// ==========================================
+// MULTI-USER ISOLATED SESSION ENGINE
+// ==========================================
 
-function isSessionExpired_() {
-  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
-  if (!username) return true;
+const SESSION_CACHE_PREFIX = 'crsess_';
+const SESSION_PROP_PREFIX = 'crsess_';
 
-  const lastActivity = Number(PropertiesService.getUserProperties().getProperty('conference_records.lastActivity') || 0);
-  if (!lastActivity) return false;
-
-  return (Date.now() - lastActivity) > SESSION_TIMEOUT_MS;
+function getSessionTimeoutMs_() {
+  try {
+    if (typeof getPublicBrandSettings === 'function') {
+      const b = getPublicBrandSettings();
+      const mins = Number(b.session_timeout_mins);
+      if (!isNaN(mins) && mins > 0) return mins * 60 * 1000;
+    }
+  } catch (e) {}
+  return 30 * 60 * 1000;
 }
 
-function touchSession() {
+function createSession_(username, role) {
+  const sid = Utilities.getUuid().replace(/-/g, '');
+  const data = {
+    sid: sid,
+    username: String(username).trim().toLowerCase(),
+    role: String(role || 'viewer').trim().toLowerCase(),
+    lastActivity: Date.now(),
+    createdAt: Date.now()
+  };
+  const json = JSON.stringify(data);
+  try {
+    CacheService.getScriptCache().put(SESSION_CACHE_PREFIX + sid, json, 21600);
+  } catch (e) {}
+  try {
+    PropertiesService.getScriptProperties().setProperty(SESSION_PROP_PREFIX + sid, json);
+  } catch (e) {}
+  // Legacy single-user support fallback
+  try {
+    PropertiesService.getUserProperties().setProperty('conference_records.username', data.username);
+    PropertiesService.getUserProperties().setProperty('conference_records.lastActivity', String(Date.now()));
+  } catch (e) {}
+  return sid;
+}
+
+function getValidSession_(sid) {
+  if (!sid) return null;
+  const cleanSid = String(sid).trim();
+  if (!cleanSid) return null;
+  const timeoutMs = getSessionTimeoutMs_();
+
+  let json = null;
+  try {
+    json = CacheService.getScriptCache().get(SESSION_CACHE_PREFIX + cleanSid);
+  } catch (e) {}
+  if (!json) {
+    try {
+      json = PropertiesService.getScriptProperties().getProperty(SESSION_PROP_PREFIX + cleanSid);
+    } catch (e) {}
+  }
+  if (!json) return null;
+
+  let session = null;
+  try {
+    session = JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+
+  if (!session || !session.username) return null;
+
+  // Individual user last-activity timeout validation!
+  const lastActivity = Number(session.lastActivity || session.createdAt || 0);
+  if ((Date.now() - lastActivity) > timeoutMs) {
+    invalidateSession_(cleanSid);
+    return null;
+  }
+
+  return session;
+}
+
+function touchSession_(sid) {
+  if (!sid) return null;
+  const cleanSid = String(sid).trim();
+  const session = getValidSession_(cleanSid);
+  if (!session) return null;
+  session.lastActivity = Date.now();
+  const json = JSON.stringify(session);
+  try {
+    CacheService.getScriptCache().put(SESSION_CACHE_PREFIX + cleanSid, json, 21600);
+  } catch (e) {}
+  try {
+    PropertiesService.getScriptProperties().setProperty(SESSION_PROP_PREFIX + cleanSid, json);
+  } catch (e) {}
+  return session;
+}
+
+function invalidateSession_(sid) {
+  if (!sid) return;
+  const cleanSid = String(sid).trim();
+  try {
+    CacheService.getScriptCache().remove(SESSION_CACHE_PREFIX + cleanSid);
+  } catch (e) {}
+  try {
+    PropertiesService.getScriptProperties().deleteProperty(SESSION_PROP_PREFIX + cleanSid);
+  } catch (e) {}
+}
+
+function clearLegacySession_() {
+  try {
+    PropertiesService.getUserProperties().deleteProperty('conference_records.username');
+    PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
+  } catch (e) {}
+}
+
+function validateSession(sid) {
+  const session = getValidSession_(sid);
+  if (!session) return { valid: false };
+  touchSession_(sid);
+  return {
+    valid: true,
+    username: session.username,
+    role: session.role,
+    timeoutMs: getSessionTimeoutMs_()
+  };
+}
+
+function touchSession(sid) {
+  if (sid) {
+    const session = touchSession_(sid);
+    if (session) {
+      return { ok: true, username: session.username };
+    }
+    return { ok: false, expired: true };
+  }
   const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
   if (!username) return { ok: false, expired: true };
-
   PropertiesService.getUserProperties().setProperty('conference_records.lastActivity', String(Date.now()));
   return { ok: true, username: username };
 }
 
-function clearSession_() {
-  PropertiesService.getUserProperties().deleteProperty('conference_records.username');
-  PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
+function logoutUser(sid) {
+  if (sid) {
+    invalidateSession_(sid);
+  }
+  clearLegacySession_();
+  return { ok: true };
 }

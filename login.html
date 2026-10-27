@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Conference Records Login</title>
+  <title><?= (brand && brand.company_name) ? brand.company_name + ' Login' : 'Conference Records Login' ?></title>
   <style>
     :root {
       --bg1: #0f172a;
@@ -56,6 +56,12 @@
       background: linear-gradient(135deg, var(--primary), var(--primary-2));
       box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
       font-size: 18px;
+    }
+
+    .brand-logo-img {
+      width: 42px; height: 42px; border-radius: 12px;
+      object-fit: contain; background: #ffffff; padding: 4px;
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
     }
 
     h1 {
@@ -167,11 +173,15 @@
 <body>
   <div class="login-shell">
     <div class="brand">
-      <div class="brand-mark">📊</div>
-      <span>Conference Records</span>
+      <? if (brand && brand.company_logo) { ?>
+        <img src="<?= brand.company_logo ?>" alt="Company Logo" class="brand-logo-img">
+      <? } else { ?>
+        <div class="brand-mark">📊</div>
+      <? } ?>
+      <span><?= (brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></span>
     </div>
     <h1>Sign in</h1>
-    <p class="subtitle">Use your username and password to access the app.</p>
+    <p class="subtitle"><?= (brand && brand.company_tagline) ? brand.company_tagline : 'Use your username and password to access the app.' ?></p>
 
     <form id="loginForm" novalidate>
       <div class="field">
@@ -199,7 +209,7 @@
       <button id="loginBtn" type="submit">Login</button>
     </form>
 
-    <div class="security-note">Protected by authenticated session and input validation.</div>
+    <div class="security-note">Protected by authenticated multi-user session and input validation.</div>
   </div>
 
   <script>
@@ -209,6 +219,33 @@
       const passwordEl = document.getElementById('password');
       const togglePasswordBtn = document.getElementById('togglePassword');
       const loginBtn = document.getElementById('loginBtn');
+
+      // Check if this browser already has an active session (and not a logout URL)
+      (function checkExistingSession() {
+        const isLogoutUrl = window.location.search.indexOf('logout=true') !== -1;
+        if (isLogoutUrl) {
+          sessionStorage.removeItem('conference_records.sid');
+          sessionStorage.removeItem('conference_records.auth');
+          sessionStorage.removeItem('conference_records.lastActivity');
+          return;
+        }
+        const existingSid = sessionStorage.getItem('conference_records.sid');
+        if (existingSid) {
+          google.script.run
+            .withSuccessHandler(function (res) {
+              if (res && res.valid) {
+                const sep = '<?= appUrl ?>'.includes('?') ? '&' : '?';
+                window.location.href = '<?= appUrl ?>' + sep + 'sid=' + encodeURIComponent(existingSid);
+              } else {
+                sessionStorage.removeItem('conference_records.sid');
+              }
+            })
+            .withFailureHandler(function () {
+              sessionStorage.removeItem('conference_records.sid');
+            })
+            .validateSession(existingSid);
+        }
+      })();
 
       function setError(field, message) {
         const errorEl = document.getElementById(field + 'Error');
@@ -266,17 +303,19 @@
 
         google.script.run
           .withSuccessHandler(function (result) {
-            if (result && result.ok) {
+            if (result && result.ok && result.sid) {
               const remember = document.getElementById('rememberMe').checked;
+              sessionStorage.setItem('conference_records.sid', result.sid);
               sessionStorage.setItem('conference_records.auth', JSON.stringify({
                 username: result.username,
+                role: result.role,
+                sid: result.sid,
                 remember: remember,
                 ts: Date.now()
               }));
-              try {
-                google.script.run.withFailureHandler(function () {}).touchSession();
-              } catch (e) {}
-              window.location.href = '<?= appUrl ?>';
+              sessionStorage.setItem('conference_records.lastActivity', String(Date.now()));
+              const sep = '<?= appUrl ?>'.includes('?') ? '&' : '?';
+              window.location.href = '<?= appUrl ?>' + sep + 'sid=' + encodeURIComponent(result.sid);
             } else {
               setError('username', 'Invalid login attempt.');
               setError('password', 'Please check your credentials.');

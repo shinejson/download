@@ -352,20 +352,30 @@ function authenticateUser(username, password) {
     updateRow_(USERS_SHEET, USERS_ID, id, upgraded);
   }
 
-  PropertiesService.getUserProperties().setProperty('conference_records.username', cleanUser);
   const normalizedRole = normalizeRole_(user.role);
+  const sid = (typeof createSession_ === 'function') ? createSession_(cleanUser, normalizedRole) : '';
+
+  try {
+    PropertiesService.getUserProperties().setProperty('conference_records.username', cleanUser);
+  } catch (e) {}
 
   return {
     ok: true,
     username: user.username,
     role: normalizedRole,
-    permissions: getRolePermissions_(normalizedRole)
+    permissions: getRolePermissions_(normalizedRole),
+    sid: sid
   };
 }
 
-function logoutUser() {
-  PropertiesService.getUserProperties().deleteProperty('conference_records.username');
-  PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
+function logoutUser(opt_sid) {
+  if (opt_sid && typeof invalidateSession_ === 'function') {
+    invalidateSession_(opt_sid);
+  }
+  try {
+    PropertiesService.getUserProperties().deleteProperty('conference_records.username');
+    PropertiesService.getUserProperties().deleteProperty('conference_records.lastActivity');
+  } catch (e) {}
   return { ok: true };
 }
 
@@ -402,8 +412,17 @@ function changePassword(username, currentPassword, newPassword) {
   return updateRow_(USERS_SHEET, USERS_ID, id, updated);
 }
 
-function getCurrentUserProfile() {
-  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+function getCurrentUserProfile(opt_sid) {
+  let username = '';
+  if (opt_sid && typeof getValidSession_ === 'function') {
+    const sess = getValidSession_(opt_sid);
+    if (sess && sess.username) username = sess.username;
+  }
+  if (!username) {
+    try {
+      username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+    } catch (e) {}
+  }
   if (!username) {
     return {
       username: '',
@@ -431,6 +450,10 @@ function getCurrentUserProfile() {
     username: String(user.username || username),
     fullName: fullName || String(user.username || username),
     role: role,
-    permissions: getRolePermissions_(role)
+    permissions: getRolePermissions_(role),
+    email: user.email || '',
+    contact: user.contact || '',
+    department: user.department || '',
+    status: user.status || 'active'
   };
 }

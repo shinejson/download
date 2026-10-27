@@ -10,7 +10,7 @@ var App = window.App = (function () {
   let currentPage = 'dashboard';
   let currentUser = null;
   let userPermissions = [];
-  let currentBrandSettings = {};
+  let currentBrandSettings = window.__BRAND_SETTINGS__ || {};
   const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
   function isStrongPassword(value) {
@@ -29,16 +29,32 @@ var App = window.App = (function () {
     return can(page + '.view');
   }
 
+  function getSessionId() {
+    return window.__SESSION_ID__ ||
+      sessionStorage.getItem('conference_records.sid') ||
+      (document.body && document.body.getAttribute('data-sid')) || '';
+  }
+
   function refreshSessionTimer() {
-    sessionStorage.setItem('conference_records.session', String(Date.now()));
-    try {
-      google.script.run.withFailureHandler(function () {}).touchSession();
-    } catch (e) {}
+    const sessionKey = 'conference_records.lastActivity';
+    sessionStorage.setItem(sessionKey, String(Date.now()));
+
+    // Throttle server-side touch call to once every 45 seconds to keep the backend session alive
+    const now = Date.now();
+    if (!window.__lastServerTouch__ || (now - window.__lastServerTouch__) > 45000) {
+      window.__lastServerTouch__ = now;
+      try {
+        const sid = getSessionId();
+        google.script.run.withFailureHandler(function () {}).touchSession(sid);
+      } catch (e) {}
+    }
   }
 
   function performLogoutRedirect() {
     sessionStorage.removeItem('conference_records.session');
     sessionStorage.removeItem('conference_records.auth');
+    sessionStorage.removeItem('conference_records.sid');
+    sessionStorage.removeItem('conference_records.lastActivity');
     try { sessionStorage.clear(); } catch (e) {}
 
     const appUrl = (window.__appUrl__ && window.__appUrl__.startsWith('http'))
@@ -50,8 +66,9 @@ var App = window.App = (function () {
         window.location.reload();
         return;
       }
-      const sep = targetUrl.includes('?') ? '&' : '?';
-      const dest = targetUrl + sep + 'logout=true';
+      // Strip any existing ?sid= or ?page= to return strictly to a clean logout state
+      const baseUrl = targetUrl.split('?')[0];
+      const dest = baseUrl + '?logout=true';
       try {
         if (window.top && window.top !== window) {
           window.top.location.href = dest;
@@ -76,25 +93,25 @@ var App = window.App = (function () {
   }
 
   function startSessionTimer() {
-    const sessionKey = 'conference_records.session';
-    const now = Date.now();
-    sessionStorage.setItem(sessionKey, String(now));
+    const sessionKey = 'conference_records.lastActivity';
+    sessionStorage.setItem(sessionKey, String(Date.now()));
     window.clearInterval(window.__appSessionTimer__);
+
+    // Dynamic inactivity timeout from settings (default 30 mins)
+    const timeoutMins = Number(currentBrandSettings.session_timeout_mins) || 30;
+    const timeoutMs = timeoutMins * 60 * 1000;
+
     window.__appSessionTimer__ = window.setInterval(function () {
       const last = Number(sessionStorage.getItem(sessionKey) || 0);
       if (!last) return;
-      if ((Date.now() - last) > SESSION_TIMEOUT_MS) {
+      if ((Date.now() - last) > timeoutMs) {
         window.clearInterval(window.__appSessionTimer__);
-        try {
-          google.script.run
-            .withSuccessHandler(function () { performLogoutRedirect(); })
-            .withFailureHandler(function () { performLogoutRedirect(); })
-            .logoutUser();
-        } catch (e) {
-          performLogoutRedirect();
-        }
+        toast('Your session has expired due to inactivity (' + timeoutMins + ' min limit). Logging out...', 'info');
+        setTimeout(function () {
+          logout(true);
+        }, 1200);
       }
-    }, 30000);
+    }, 15000);
   }
 
   function applyBrandSettings(settings) {
@@ -130,13 +147,17 @@ var App = window.App = (function () {
 
   function loadBrandSettings() {
     google.script.run
-      .withSuccessHandler(function (settingsMap) {
-        applyBrandSettings(settingsMap || {});
+      .withSuccessHandler(function (brand) {
+        if (brand && typeof brand === 'object') {
+          applyBrandSettings(brand);
+          // Refresh session inactivity limit in case it was updated in settings
+          startSessionTimer();
+        }
       })
-      .withFailureHandler(function () {
-        applyBrandSettings({});
+      .withFailureHandler(function (err) {
+        console.warn('Could not load brand settings:', err);
       })
-      .getSettingsMap();
+      .getPublicBrandSettings();
   }
 
   function setTopbarUser(user) {
@@ -202,6 +223,7 @@ var App = window.App = (function () {
   }
 
   function loadCurrentUser() {
+    const sid = getSessionId();
     google.script.run
       .withSuccessHandler(function (user) {
         currentUser = user || { username: '', fullName: '', role: 'viewer', permissions: [] };
@@ -216,7 +238,7 @@ var App = window.App = (function () {
         setTopbarUser(currentUser);
         applyRolePermissions();
       })
-      .getCurrentUserProfile();
+      .getCurrentUserProfile(sid);
   }
 
   function applyPasswordToggleToFields() {
@@ -475,6 +497,8 @@ var App = window.App = (function () {
     window.addEventListener('mousemove', refreshSessionTimer);
     window.addEventListener('keydown', refreshSessionTimer);
     window.addEventListener('click', refreshSessionTimer);
+    applyBrandSettings(currentBrandSettings);
+    loadBrandSettings();
     startSessionTimer();
     loadCurrentUser();
 
@@ -555,8 +579,9 @@ var App = window.App = (function () {
     } catch { return String(d); }
   }
 
-  function logout() {
-    if (!window.confirm('Are you sure you want to log out?')) return;
+  function logout(force = false) {
+    if (!force && !window.confirm('Are you sure you want to log out?')) return;
+    const sid = getSessionId();
     try {
       google.script.run
         .withSuccessHandler(function () {
@@ -566,7 +591,7 @@ var App = window.App = (function () {
           console.error('Logout error:', err);
           performLogoutRedirect();
         })
-        .logoutUser();
+        .logoutUser(sid);
     } catch (e) {
       performLogoutRedirect();
     }

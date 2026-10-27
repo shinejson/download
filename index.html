@@ -3,7 +3,7 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <title>Conference Records</title>
+  <title><?= (brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></title>
   <!-- Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <?!= include('styles'); ?>
@@ -13,16 +13,40 @@
     window.App = window.App || {};
     var Pages = window.Pages;
     var App = window.App;
+
+    function safeJsonParse(value, fallback) {
+      try {
+        if (value === undefined || value === null || value === '') return fallback;
+        return JSON.parse(String(value));
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    var bodyEl = document.body || {};
+    var bodyData = bodyEl.dataset || {};
+    var brandData = bodyData.brand ? decodeURIComponent(bodyData.brand) : '{}';
+
+    window.__SESSION_ID__ = bodyData.sid || '';
+    window.__CURRENT_USER_NAME__ = bodyData.username || '';
+    window.__CURRENT_ROLE__ = bodyData.role || '';
+    window.__BRAND_SETTINGS__ = safeJsonParse(brandData, {});
   </script>
 </head>
-<body data-app-url="<?= appUrl ?>">
+<body data-app-url="<?= appUrl ?>" data-sid="<?= sid || '' ?>" data-username="<?= currentUser || '' ?>" data-role="<?= currentRole || '' ?>" data-brand="<?= encodeURIComponent(JSON.stringify(brand || {})) ?>" data-page="<?= page ?>" data-sheet-id="<?= sheetId || '' ?>">
   <div id="app"></div>
 
   <!-- SIDEBAR -->
   <aside id="sidebar">
     <div class="sidebar-brand">
-      <div class="logo" id="sidebarBrandLogo"><i class="fa-solid fa-chart-pie"></i></div>
-      <span id="sidebarBrandName">Conference Records</span>
+      <div class="logo" id="sidebarBrandLogo">
+        <? if (brand && brand.company_logo) { ?>
+          <img src="<?= brand.company_logo ?>" alt="Brand Logo" style="width:30px;height:30px;object-fit:contain;border-radius:6px;display:block;background:#fff;padding:2px;">
+        <? } else { ?>
+          <i class="fa-solid fa-chart-pie"></i>
+        <? } ?>
+      </div>
+      <span id="sidebarBrandName"><?= (brand && brand.company_name) ? brand.company_name : 'Conference Records' ?></span>
     </div>
     <nav class="sidebar-nav">
       <a href="#dashboard" data-page="dashboard" class="nav-link">
@@ -174,10 +198,14 @@
   <?!= include('search.js'); ?>
 
   <script>
-    const INITIAL_PAGE = '<?= page ?>';
-    const SHEET_ID = '<?= sheetId ?>';
-    const APP_URL = '<?= appUrl ?>';
+    var bodyEl = document.body || {};
+    var bodyData = bodyEl.dataset || {};
+    var INITIAL_PAGE = bodyData.page || 'dashboard';
+    var SHEET_ID = bodyData.sheetId || '';
+    var APP_URL = bodyData.appUrl || '';
+    var SESSION_ID = bodyData.sid || '';
     window.__appUrl__ = APP_URL;
+    window.__SESSION_ID__ = SESSION_ID;
     document.addEventListener('DOMContentLoaded', function () {
       App.init(INITIAL_PAGE);
     });

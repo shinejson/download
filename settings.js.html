@@ -463,19 +463,44 @@ Pages.settings = (function () {
       btn.onclick = () => switchTab(btn.dataset.tab);
     });
 
-    // 2. Company Logo File Upload
+    // 2. Company Logo File Upload (auto-resized via canvas to safe storage dimensions)
     const fileInput = document.getElementById('cfgLogoFileInput');
     if (fileInput) {
       fileInput.onchange = (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
-        if (file.size > 2 * 1024 * 1024) {
-          App.toast('Logo image must be under 2MB.', 'error');
+        if (file.size > 5 * 1024 * 1024) {
+          App.toast('Logo image must be under 5MB.', 'error');
           return;
         }
         const reader = new FileReader();
         reader.onload = (event) => {
-          updateLogoPreview(event.target.result);
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 280;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round(h * maxDim / w);
+                w = maxDim;
+              } else {
+                w = Math.round(w * maxDim / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const optimizedDataUrl = canvas.toDataURL('image/png');
+            updateLogoPreview(optimizedDataUrl);
+          };
+          img.onerror = () => {
+            updateLogoPreview(event.target.result);
+          };
+          img.src = event.target.result;
         };
         reader.readAsDataURL(file);
       };

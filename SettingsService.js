@@ -1,5 +1,57 @@
 const SETTINGS_SHEET = 'settings';
 
+/**
+ * Returns public brand identity and operational defaults accessible to all users (admin, staff, manager, viewer)
+ * and unauthenticated login screen. Does NOT contain sensitive credentials (passwords, SMTP details).
+ */
+function getPublicBrandSettings() {
+  try {
+    const sheet = getSheet_(SETTINGS_SHEET);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return getDefaultBrand_();
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    const map = {};
+    data.forEach(r => {
+      const k = String(r[0] != null ? r[0] : '').trim().toLowerCase();
+      if (k) map[k] = r[1] != null ? String(r[1]).trim() : '';
+    });
+
+    const companyName = map['company_name'] || map['app_display_name'] || 'Conference Records';
+    return {
+      company_name: companyName,
+      company_tagline: map['company_tagline'] || '',
+      company_logo: map['company_logo'] || '',
+      company_phone: map['company_phone'] || '',
+      company_email: map['company_email'] || '',
+      company_currency: map['company_currency'] || '$',
+      company_address: map['company_address'] || '',
+      company_footer_note: map['company_footer_note'] || '',
+      session_timeout_mins: map['session_timeout_mins'] || '30',
+      default_page_size: map['default_page_size'] || '10',
+      date_format: map['date_format'] || 'YYYY-MM-DD'
+    };
+  } catch (err) {
+    console.error('getPublicBrandSettings error:', err);
+    return getDefaultBrand_();
+  }
+}
+
+function getDefaultBrand_() {
+  return {
+    company_name: 'Conference Records',
+    company_tagline: '',
+    company_logo: '',
+    company_phone: '',
+    company_email: '',
+    company_currency: '$',
+    company_address: '',
+    company_footer_note: '',
+    session_timeout_mins: '30',
+    default_page_size: '10',
+    date_format: 'YYYY-MM-DD'
+  };
+}
+
 function getSettings() {
   requirePermission_('settings.view');
   const sheet = getSheet_(SETTINGS_SHEET);
@@ -14,7 +66,13 @@ function getSettings() {
 }
 
 function getSettingsMap() {
-  requirePermission_('settings.view');
+  // If user does not have settings.view (manager, staff, viewer),
+  // gracefully return the public brand settings instead of throwing an error!
+  try {
+    requirePermission_('settings.view');
+  } catch (e) {
+    return getPublicBrandSettings();
+  }
   const rows = getSettings();
   const map = {};
   rows.forEach(r => {

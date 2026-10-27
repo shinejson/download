@@ -93,9 +93,26 @@ function hasRolePermission_(role, permission) {
 
 /**
  * Retrieves the currently logged-in user record from the sheet.
+ * Supports explicit session context (sid) or fallback to active UserProperties.
  */
-function getCurrentUser_() {
-  const username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+function getCurrentUser_(opt_context) {
+  let username = '';
+  if (opt_context && typeof opt_context === 'string' && typeof getValidSession_ === 'function') {
+    const session = getValidSession_(opt_context);
+    if (session && session.username) username = session.username;
+  }
+  if (!username && opt_context && typeof opt_context === 'object' && typeof getValidSession_ === 'function') {
+    const sid = opt_context._sid || opt_context.sid;
+    if (sid) {
+      const session = getValidSession_(sid);
+      if (session && session.username) username = session.username;
+    }
+  }
+  if (!username) {
+    try {
+      username = PropertiesService.getUserProperties().getProperty('conference_records.username');
+    } catch (e) {}
+  }
   if (!username) return null;
   const rows = readAll_(USERS_SHEET) || [];
   const clean = normalizeUsername_(username);
@@ -121,8 +138,8 @@ function countActiveAdmins_() {
  * Checks if current user has permission.
  * Throws an error if not authorized.
  */
-function requirePermission_(permission) {
-  const user = getCurrentUser_();
+function requirePermission_(permission, opt_context) {
+  const user = getCurrentUser_(opt_context);
   if (!user) {
     throw new Error('Authentication required. Please log in.');
   }
@@ -136,8 +153,8 @@ function requirePermission_(permission) {
 /**
  * Checks if current user has view permission for a page
  */
-function canAccessPage_(page) {
-  const user = getCurrentUser_();
+function canAccessPage_(page, opt_context) {
+  const user = getCurrentUser_(opt_context);
   if (!user) return false;
   return hasRolePermission_(user.role, page + '.view');
 }
