@@ -53,6 +53,43 @@ var App = window.App = (function () {
     }, 30000);
   }
 
+  function applyBrandSettings(settings) {
+    const settingsMap = settings && typeof settings === 'object' ? settings : {};
+    const appName = String(settingsMap.app_display_name || settingsMap.company_name || 'Conference Records').trim();
+    const logoUrl = String(settingsMap.company_logo || '').trim();
+    const currentYear = new Date().getFullYear();
+
+    const brandTextEl = document.querySelector('.sidebar-brand span');
+    const brandLogoEl = document.querySelector('.sidebar-brand .logo');
+    const footerEl = document.querySelector('.sidebar-footer');
+
+    if (brandTextEl) brandTextEl.textContent = appName || 'Conference Records';
+    if (footerEl) footerEl.textContent = '© ' + currentYear + ' ' + (appName || 'Conference Records');
+    if (brandLogoEl) {
+      if (logoUrl) {
+        brandLogoEl.innerHTML = '<img src="' + App.esc(logoUrl) + '" alt="Brand Logo" style="width:28px;height:28px;object-fit:cover;border-radius:8px;display:block;">';
+      } else {
+        brandLogoEl.innerHTML = '<i class="fa-solid fa-chart-pie"></i>';
+      }
+    }
+
+    const titleEl = document.getElementById('topnavTitle');
+    if (titleEl && (!titleEl.dataset.userOverride || titleEl.dataset.userOverride === 'dashboard')) {
+      titleEl.textContent = titleEl.textContent === 'Dashboard' ? 'Dashboard' : titleEl.textContent;
+    }
+  }
+
+  function loadBrandSettings() {
+    google.script.run
+      .withSuccessHandler(function (settingsMap) {
+        applyBrandSettings(settingsMap || {});
+      })
+      .withFailureHandler(function () {
+        applyBrandSettings({});
+      })
+      .getSettingsMap();
+  }
+
   function setTopbarUser(user) {
     const displayName = (user && (user.fullName || user.username)) ? String(user.fullName || user.username).trim() : 'User';
     const username = (user && user.username) ? String(user.username).trim() : 'user';
@@ -299,6 +336,7 @@ var App = window.App = (function () {
     }, notificationIntervalMs);
 
     loadNotifications();
+    loadBrandSettings();
 
     // Profile Dropdown Controls
     const profileToggle = document.getElementById('profileToggle');
@@ -391,7 +429,7 @@ var App = window.App = (function () {
     startSessionTimer();
     loadCurrentUser();
 
-    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
+    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings'];
     pageKeys.forEach(k => {
       if (window.Pages && window.Pages[k] && typeof window.Pages[k].init === 'function') {
         try { window.Pages[k].init(); } catch (err) { console.error('Error initializing ' + k + ' page:', err); }
@@ -639,6 +677,7 @@ var App = window.App = (function () {
           console.error(err);
         });
     };
+
     setTimeout(applyPasswordToggleToFields, 0);
     const first = backdrop.querySelector('input, select, textarea');
     if (first) first.focus();
@@ -801,7 +840,7 @@ var App = window.App = (function () {
   return {
     init, navigate, toast, esc, fmtDate, openModal, confirmDelete, renderTable, renderPaginatedTable,
     isStrongPassword,
-    logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser,
+    logout, openChangePasswordModal, showAccountDetailsModal, setTopbarUser, loadCurrentUser, loadBrandSettings,
     can, canView, applyRolePermissions,
     loadNotifications, refreshNotifications,
     get currentUser() { return currentUser; },

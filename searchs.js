@@ -1,4 +1,6 @@
-var Pages = window.Pages = window.Pages || {};
+var root = typeof window !== 'undefined' ? window : globalThis;
+var Pages = root.Pages = root.Pages || {};
+
 Pages.search = (function () {
   const SESSION_KEY = 'conference_records.search_query';
   const HIGHLIGHT_PAGE = 'conference_records.highlight_page';

@@ -639,6 +639,9 @@ Pages.settings = (function () {
         });
 
         populateFormFields();
+        if (typeof App !== 'undefined' && typeof App.loadBrandSettings === 'function') {
+          App.loadBrandSettings();
+        }
         renderTable();
       })
       .withFailureHandler(err => {
