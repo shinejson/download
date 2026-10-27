@@ -252,11 +252,16 @@
         company_currency: bodyData.companyCurrency || '$',
         session_timeout_mins: bodyData.sessionTimeout || '30'
       };
-      document.addEventListener('DOMContentLoaded', function () {
+      function startApp() {
         if (window.App && typeof window.App.init === 'function') {
           window.App.init(INITIAL_PAGE);
         }
-      });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startApp);
+      } else {
+        startApp();
+      }
     })();
   </script>
 </body>

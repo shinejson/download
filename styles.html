@@ -1745,6 +1745,183 @@
     border-color: var(--primary);
   }
 
+  /* Searchable Combobox Autocomplete */
+  .searchable-combobox {
+    position: relative;
+    width: 100%;
+  }
+  .searchable-combobox .combobox-input {
+    width: 100%;
+    padding-right: 28px !important;
+    text-overflow: ellipsis;
+  }
+  .combobox-arrow-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 4px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .15s, transform .15s;
+    z-index: 2;
+  }
+  .combobox-arrow-btn:hover {
+    color: var(--primary);
+  }
+  .searchable-combobox.is-open .combobox-arrow-btn {
+    transform: translateY(-50%) rotate(180deg);
+    color: var(--primary);
+  }
+  .combobox-menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    box-shadow: 0 10px 25px -3px rgba(0,0,0,0.18), 0 4px 6px -4px rgba(0,0,0,0.1);
+    z-index: 100050;
+    display: none;
+  }
+  .combobox-menu.open {
+    display: block;
+  }
+  .combobox-menu-item {
+    padding: 7px 10px;
+    font-size: 12px;
+    color: #1e293b;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background .12s;
+  }
+  .combobox-menu-item:last-child {
+    border-bottom: none;
+  }
+  .combobox-menu-item:hover,
+  .combobox-menu-item.active {
+    background: #eff6ff;
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .combobox-menu-item mark {
+    background: transparent;
+    color: var(--primary);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+  .combobox-menu-empty {
+    padding: 8px 12px;
+    font-size: 11.5px;
+    color: #64748b;
+    text-align: center;
+    font-style: italic;
+    background: #f8fafc;
+  }
+
+  /* Ingredients Total Summary Bar */
+  .ingredient-total-summary-card {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .ingredient-total-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .total-metric {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .total-icon {
+    font-size: 18px;
+    color: var(--primary);
+    background: #e0f2fe;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  .total-metric-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .total-metric-value {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .total-metric-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    background: #e2e8f0;
+    padding: 3px 8px;
+    border-radius: 12px;
+  }
+  .total-metric-breakdown {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .btn-merge-duplicates {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all .15s;
+  }
+  .btn-merge-duplicates:hover {
+    background: #e2e8f0;
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .sheet-ingredient-total-row {
+    margin-top: 6px;
+    padding-top: 6px !important;
+    border-top: 2px solid #0f172a !important;
+    border-bottom: 2px solid #0f172a !important;
+    background: #f8fafc;
+    font-weight: 800 !important;
+  }
+  .sheet-ingredient-total-row .sheet-ingredient-name {
+    font-weight: 800 !important;
+    letter-spacing: 0.5px;
+  }
+  .sheet-ingredient-total-row .sheet-ingredient-weight {
+    font-weight: 800 !important;
+    color: #0f172a;
+  }
+
   /* ===== Production Sheet Printable View ===== */
   .production-sheet-card {
     background: #ffffff;
@@ -2607,6 +2784,15 @@
       line-height: 1.25 !important;
       padding: 2px 0 !important;
       border-bottom: 1px dotted #ccc !important;
+    }
+
+    .sheet-ingredient-total-row {
+      margin-top: 4px !important;
+      padding-top: 4px !important;
+      border-top: 2px solid #000 !important;
+      border-bottom: 2px solid #000 !important;
+      background: #f8fafc !important;
+      font-weight: 900 !important;
     }
 
     .sheet-footer-remarks {

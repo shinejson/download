@@ -337,7 +337,7 @@ Pages.menu = (function () {
   }
 
   function loadMasterLookups() {
-    if (App.can('categories.view')) {
+    if (window.google && google.script && google.script.run) {
       google.script.run
         .withSuccessHandler(data => {
           categoryOptions = data || [];
@@ -345,14 +345,265 @@ Pages.menu = (function () {
         })
         .withFailureHandler(() => { categoryOptions = []; })
         .getCategories();
-    }
-    if (App.can('items.view')) {
+
       google.script.run
         .withSuccessHandler(data => { itemOptions = data || []; })
         .withFailureHandler(() => { itemOptions = []; })
         .getItems();
     }
   }
+
+  function getMasterDishItems() {
+    const list = [];
+    const seen = new Set();
+
+    (itemOptions || []).forEach(it => {
+      const name = String(it['Items Name'] || it.name || '').trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    const defaults = [
+      'Spicy Chicken Wings', 'Grilled Fish in Lemon Herb', 'Sword Fish Fillet',
+      'Beef Stew', 'Fried Rice', 'Jollof Rice', 'Steamed Jasmine Rice',
+      'Mixed Green Salad', 'Coleslaw', 'Fresh Fruit Platter', 'Chocolate Cake',
+      'Spring Rolls', 'Samosas', 'Garlic Bread', 'Plantain (Dodo)',
+      'Roast Potatoes', 'Assorted Meat Platter', 'Fish in Herb Sauce',
+      'Vegetable Stir Fry', 'Pepper Soup'
+    ];
+    defaults.forEach(name => {
+      if (!seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    return list;
+  }
+
+  function getMasterIngredientItems() {
+    const list = [];
+    const seen = new Set();
+
+    (itemOptions || []).forEach(it => {
+      const name = String(it['Items Name'] || it.name || '').trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    const pantryDefaults = [
+      'Fresh Tomatoes', 'Green Pepper', 'Tomato Paste', 'Onion', 'Garlic',
+      'Ginger', 'Fresh Chicken', 'Beef Chuck / Stew Meat', 'Fresh Fish Fillet',
+      'Sword Fish', 'Eggs', 'Cooking Oil', 'Olive Oil', 'Butter',
+      'Wheat Flour', 'Jasmine Rice', 'Basmati Rice', 'Ripe Plantain',
+      'Carrots', 'Green Beans', 'Cabbage', 'Lettuce', 'Cucumber',
+      'Curry Powder', 'Dried Thyme', 'White Pepper', 'Black Pepper',
+      'Seasoning Cubes', 'Table Salt', 'Granulated Sugar', 'Fresh Milk',
+      'Heavy Cream', 'Soy Sauce', 'Chili Flakes', 'Bell Pepper Mix'
+    ];
+    pantryDefaults.forEach(name => {
+      if (!seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    return list;
+  }
+
+  function formatIngredientsTotal(ingredients) {
+    let totalKg = 0;
+    let pcs = 0;
+    let packs = 0;
+    let liters = 0;
+    let count = 0;
+
+    (ingredients || []).forEach(ing => {
+      if (!ing || !ing.name || !String(ing.name).trim()) return;
+      count++;
+      const rawVal = parseFloat(String(ing.weight || '').replace(/[^0-9.]/g, ''));
+      if (isNaN(rawVal) || rawVal <= 0) return;
+      const unit = String(ing.unit || 'kg').toLowerCase().trim();
+
+      if (unit === 'kg') {
+        totalKg += rawVal;
+      } else if (unit === 'g' || unit === 'gms') {
+        totalKg += (rawVal / 1000);
+      } else if (unit === 'lbs') {
+        totalKg += (rawVal * 0.45359237);
+      } else if (unit === 'pcs') {
+        pcs += rawVal;
+      } else if (unit === 'packs') {
+        packs += rawVal;
+      } else if (unit === 'l' || unit === 'litres' || unit === 'liter') {
+        liters += rawVal;
+      } else if (unit === 'ml') {
+        liters += (rawVal / 1000);
+      } else {
+        totalKg += rawVal;
+      }
+    });
+
+    const parts = [];
+    if (totalKg > 0) {
+      const formattedKg = Number(totalKg.toFixed(2)).toString();
+      parts.push(`${formattedKg} kg`);
+    }
+    if (liters > 0) {
+      const formattedL = Number(liters.toFixed(2)).toString();
+      parts.push(`${formattedL} L`);
+    }
+    if (pcs > 0) {
+      parts.push(`${pcs} pcs`);
+    }
+    if (packs > 0) {
+      parts.push(`${packs} packs`);
+    }
+
+    const primaryStr = parts.length > 0 ? parts.join(' &bull; ') : '0 kg';
+    return {
+      count,
+      primaryStr,
+      totalKg: Number(totalKg.toFixed(2)),
+      parts
+    };
+  }
+
+  function setupCombobox(boxEl, inputEl, optionsGetter, onSelect) {
+    if (!boxEl || !inputEl) return;
+    const menuEl = boxEl.querySelector('.combobox-menu');
+    const arrowBtn = boxEl.querySelector('.combobox-arrow-btn');
+    let activeIndex = -1;
+
+    function closeMenu() {
+      if (menuEl) menuEl.classList.remove('open');
+      boxEl.classList.remove('is-open');
+      activeIndex = -1;
+    }
+
+    function renderList(query) {
+      if (!menuEl) return;
+      const rawOptions = (typeof optionsGetter === 'function' ? optionsGetter() : optionsGetter) || [];
+      const q = (query || '').trim().toLowerCase();
+
+      const filtered = q
+        ? rawOptions.filter(opt => String(opt).toLowerCase().includes(q))
+        : rawOptions;
+
+      if (filtered.length === 0) {
+        menuEl.innerHTML = `<div class="combobox-menu-empty">No exact matches &bull; Press Enter to use "${App.esc(query)}"</div>`;
+      } else {
+        menuEl.innerHTML = filtered.slice(0, 50).map((opt, i) => {
+          let label = App.esc(opt);
+          if (q) {
+            const matchIdx = opt.toLowerCase().indexOf(q);
+            if (matchIdx !== -1) {
+              const before = opt.substring(0, matchIdx);
+              const match = opt.substring(matchIdx, matchIdx + q.length);
+              const after = opt.substring(matchIdx + q.length);
+              label = `${App.esc(before)}<mark>${App.esc(match)}</mark>${App.esc(after)}`;
+            }
+          }
+          return `<div class="combobox-menu-item" data-index="${i}" data-val="${App.esc(opt)}"><span>${label}</span></div>`;
+        }).join('');
+
+        menuEl.querySelectorAll('.combobox-menu-item').forEach(item => {
+          item.onmousedown = (e) => {
+            e.preventDefault();
+            const val = item.dataset.val;
+            inputEl.value = val;
+            closeMenu();
+            if (typeof onSelect === 'function') onSelect(val);
+          };
+        });
+      }
+
+      menuEl.classList.add('open');
+      boxEl.classList.add('is-open');
+      activeIndex = -1;
+    }
+
+    inputEl.addEventListener('focus', () => {
+      document.querySelectorAll('.combobox-menu.open').forEach(m => {
+        if (m !== menuEl) {
+          m.classList.remove('open');
+          m.closest('.searchable-combobox')?.classList.remove('is-open');
+        }
+      });
+      renderList(inputEl.value);
+    });
+
+    inputEl.addEventListener('input', () => {
+      renderList(inputEl.value);
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+      const items = menuEl ? menuEl.querySelectorAll('.combobox-menu-item') : [];
+      if (!menuEl || !menuEl.classList.contains('open')) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          renderList(inputEl.value);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length === 0) return;
+        activeIndex = (activeIndex + 1) % items.length;
+        items.forEach((it, idx) => it.classList.toggle('active', idx === activeIndex));
+        items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length === 0) return;
+        activeIndex = (activeIndex - 1 + items.length) % items.length;
+        items.forEach((it, idx) => it.classList.toggle('active', idx === activeIndex));
+        items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        if (activeIndex >= 0 && items[activeIndex]) {
+          e.preventDefault();
+          const val = items[activeIndex].dataset.val;
+          inputEl.value = val;
+          closeMenu();
+          if (typeof onSelect === 'function') onSelect(val);
+        } else {
+          closeMenu();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMenu();
+      } else if (e.key === 'Tab') {
+        closeMenu();
+      }
+    });
+
+    if (arrowBtn) {
+      arrowBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (menuEl && menuEl.classList.contains('open')) {
+          closeMenu();
+        } else {
+          inputEl.focus();
+          renderList('');
+        }
+      });
+    }
+  }
+
+  // Global document listener for closing comboboxes on outside click
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.searchable-combobox')) {
+      document.querySelectorAll('.combobox-menu.open').forEach(m => {
+        m.classList.remove('open');
+        m.closest('.searchable-combobox')?.classList.remove('is-open');
+      });
+    }
+  });
 
   function getTableWrap() {
     ensurePageMarkup();
@@ -739,6 +990,10 @@ Pages.menu = (function () {
       return;
     }
 
+    if (!itemOptions || itemOptions.length === 0) {
+      loadMasterLookups();
+    }
+
     const parsed = parseMenuData(record ? record.menu : null);
 
     // Initial state
@@ -832,8 +1087,11 @@ Pages.menu = (function () {
             <!-- Right Column: Ingredient Use Box -->
             <div class="menu-ingredients-col">
               <div class="ingredient-builder-box">
-                <div class="ingredient-builder-title">
-                  INGREDIENT USE (KITCHEN PREP)
+                <div class="ingredient-builder-title" style="display:flex;justify-content:space-between;align-items:center;">
+                  <span>INGREDIENT USE (KITCHEN PREP)</span>
+                  <button type="button" class="btn-merge-duplicates" id="builderSumDuplicatesBtn" title="Combine duplicate ingredients by name and sum weights">
+                    <i class="fa-solid fa-calculator"></i> Sum Duplicates
+                  </button>
                 </div>
                 <p style="font-size:12px;color:var(--text-light);margin-top:-6px;margin-bottom:12px;text-align:center;">
                   Raw storehouse ingredients and weights required for cooking.
@@ -844,6 +1102,8 @@ Pages.menu = (function () {
                 <button type="button" class="btn-add-item-dashed" id="builderAddIngredientBtn" style="margin-top:10px;">
                   <i class="fa-solid fa-plus"></i> Add Ingredient Line
                 </button>
+
+                <div class="ingredient-total-summary-card" id="builderIngredientsTotalCard"></div>
               </div>
             </div>
           </div>
@@ -887,7 +1147,11 @@ Pages.menu = (function () {
           <div class="category-items-list" data-cat-items="${cIdx}">
             ${cat.items.map((it, iIdx) => `
               <div class="dish-item-row" data-item-idx="${iIdx}">
-                <input type="text" list="builderItemDatalist" class="dish-name" placeholder="Item name (e.g. Spicy Chicken Wings)" value="${App.esc(it.name)}">
+                <div class="searchable-combobox">
+                  <input type="text" class="dish-name combobox-input" placeholder="Select or type item name..." value="${App.esc(it.name)}" autocomplete="off">
+                  <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
+                  <div class="combobox-menu"></div>
+                </div>
                 <input type="text" class="dish-pcs" placeholder="pcs (e.g. 8pcs)" value="${App.esc(it.pcs || '')}">
                 <input type="text" class="dish-weight" placeholder="weight (e.g. 7.0)" value="${App.esc(it.weight || '')}">
                 <select class="dish-unit">
@@ -922,13 +1186,19 @@ Pages.menu = (function () {
         };
       });
 
-      // Item fields
+      // Item fields & Searchable Comboboxes
       backdrop.querySelectorAll('.dish-item-row').forEach(row => {
         const card = row.closest('.category-section-card');
         const cIdx = Number(card.dataset.catIdx);
         const iIdx = Number(row.dataset.itemIdx);
+        const box = row.querySelector('.searchable-combobox');
+        const dishInput = row.querySelector('.dish-name');
 
-        row.querySelector('.dish-name').oninput = (e) => { stateCategories[cIdx].items[iIdx].name = e.target.value; };
+        dishInput.oninput = (e) => { stateCategories[cIdx].items[iIdx].name = e.target.value; };
+        setupCombobox(box, dishInput, getMasterDishItems, (val) => {
+          stateCategories[cIdx].items[iIdx].name = val;
+        });
+
         row.querySelector('.dish-pcs').oninput = (e) => { stateCategories[cIdx].items[iIdx].pcs = e.target.value; };
         row.querySelector('.dish-weight').oninput = (e) => { stateCategories[cIdx].items[iIdx].weight = e.target.value; };
         row.querySelector('.dish-unit').onchange = (e) => { stateCategories[cIdx].items[iIdx].unit = e.target.value; };
@@ -963,13 +1233,93 @@ Pages.menu = (function () {
       });
     }
 
-    // Render Ingredients
+    // Helper: Live Update of Ingredients Summary in Builder Modal
+    function updateIngredientsTotal() {
+      const totalCard = backdrop.querySelector('#builderIngredientsTotalCard');
+      if (!totalCard) return;
+
+      const summary = formatIngredientsTotal(stateIngredients);
+      totalCard.innerHTML = `
+        <div class="ingredient-total-header">
+          <div class="total-metric">
+            <i class="fa-solid fa-scale-balanced total-icon"></i>
+            <div>
+              <div class="total-metric-label">TOTAL PREP INGREDIENTS</div>
+              <div class="total-metric-value">${summary.primaryStr}</div>
+            </div>
+          </div>
+          <div class="total-metric-badge">
+            ${summary.count} line item${summary.count === 1 ? '' : 's'}
+          </div>
+        </div>
+        ${summary.parts.length > 1 ? `
+          <div class="total-metric-breakdown">
+            Breakdown: ${summary.parts.join(' &bull; ')}
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // Helper: Sum & Combine Duplicate Ingredients
+    function mergeDuplicateIngredients() {
+      const map = new Map();
+      let mergedCount = 0;
+
+      stateIngredients.forEach(ing => {
+        const name = String(ing.name || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+
+        const rawVal = parseFloat(String(ing.weight || '').replace(/[^0-9.]/g, ''));
+        const val = isNaN(rawVal) ? 0 : rawVal;
+        const unit = String(ing.unit || 'kg').toLowerCase().trim();
+
+        if (map.has(key)) {
+          mergedCount++;
+          const existing = map.get(key);
+          const exUnit = String(existing.unit || 'kg').toLowerCase().trim();
+          let exVal = parseFloat(String(existing.weight || 0)) || 0;
+
+          if (exUnit === unit) {
+            existing.weight = Number((exVal + val).toFixed(2)).toString();
+          } else if (exUnit === 'kg' && (unit === 'g' || unit === 'gms')) {
+            existing.weight = Number((exVal + (val / 1000)).toFixed(2)).toString();
+          } else if ((exUnit === 'g' || exUnit === 'gms') && unit === 'kg') {
+            existing.unit = 'kg';
+            existing.weight = Number(((exVal / 1000) + val).toFixed(2)).toString();
+          } else {
+            existing.weight = Number((exVal + val).toFixed(2)).toString();
+          }
+        } else {
+          map.set(key, {
+            name: name,
+            weight: val > 0 ? Number(val.toFixed(2)).toString() : String(ing.weight || ''),
+            unit: ing.unit || 'kg'
+          });
+        }
+      });
+
+      if (mergedCount === 0) {
+        App.toast('No duplicate ingredients found to sum.', 'info');
+        return;
+      }
+
+      stateIngredients = Array.from(map.values());
+      renderIngredients();
+      App.toast(`Combined and summed ${mergedCount} duplicate ingredient line(s)!`, 'success');
+    }
+
+    // Render Ingredients with Searchable Combobox & Live Totals
     function renderIngredients() {
       const container = backdrop.querySelector('#builderIngredientsContainer');
       container.innerHTML = stateIngredients.map((ing, idx) => `
         <div class="ingredient-row" data-ing-idx="${idx}">
-          <input type="text" class="ing-name" placeholder="Ingredient name" value="${App.esc(ing.name)}">
-          <input type="text" class="ing-weight" placeholder="Weight/qty" value="${App.esc(ing.weight)}">
+          <div class="searchable-combobox">
+            <input type="text" class="ing-name combobox-input" placeholder="Select or type ingredient..." value="${App.esc(ing.name)}" autocomplete="off">
+            <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
+            <div class="combobox-menu"></div>
+          </div>
+          <input type="text" class="ing-weight" placeholder="Weight/qty (e.g. 1.5)" value="${App.esc(ing.weight)}">
           <select class="ing-unit">
             <option value="kg" ${ing.unit === 'kg' ? 'selected' : ''}>kg</option>
             <option value="gms" ${ing.unit === 'gms' ? 'selected' : ''}>gms</option>
@@ -985,14 +1335,36 @@ Pages.menu = (function () {
       `).join('');
 
       bindIngredientEvents();
+      updateIngredientsTotal();
     }
 
     function bindIngredientEvents() {
       backdrop.querySelectorAll('.ingredient-row').forEach(row => {
         const idx = Number(row.dataset.ingIdx);
-        row.querySelector('.ing-name').oninput = (e) => { stateIngredients[idx].name = e.target.value; };
-        row.querySelector('.ing-weight').oninput = (e) => { stateIngredients[idx].weight = e.target.value; };
-        row.querySelector('.ing-unit').onchange = (e) => { stateIngredients[idx].unit = e.target.value; };
+        const box = row.querySelector('.searchable-combobox');
+        const nameInput = row.querySelector('.ing-name');
+        const weightInput = row.querySelector('.ing-weight');
+        const unitSelect = row.querySelector('.ing-unit');
+
+        nameInput.oninput = (e) => {
+          stateIngredients[idx].name = e.target.value;
+          updateIngredientsTotal();
+        };
+
+        setupCombobox(box, nameInput, getMasterIngredientItems, (val) => {
+          stateIngredients[idx].name = val;
+          updateIngredientsTotal();
+        });
+
+        weightInput.oninput = (e) => {
+          stateIngredients[idx].weight = e.target.value;
+          updateIngredientsTotal();
+        };
+
+        unitSelect.onchange = (e) => {
+          stateIngredients[idx].unit = e.target.value;
+          updateIngredientsTotal();
+        };
       });
 
       backdrop.querySelectorAll('[data-del-ing]').forEach(btn => {
@@ -1002,6 +1374,11 @@ Pages.menu = (function () {
           renderIngredients();
         };
       });
+
+      const sumDuplicatesBtn = backdrop.querySelector('#builderSumDuplicatesBtn');
+      if (sumDuplicatesBtn) {
+        sumDuplicatesBtn.onclick = mergeDuplicateIngredients;
+      }
     }
 
     // Add category button
@@ -1201,6 +1578,10 @@ Pages.menu = (function () {
                           <span class="sheet-ingredient-weight">${App.esc(ing.weight)}${App.esc(ing.unit || '')}</span>
                         </div>
                       `).join('')}
+                      <div class="sheet-ingredient-row sheet-ingredient-total-row">
+                        <span class="sheet-ingredient-name"><strong>TOTAL PREP WEIGHT</strong></span>
+                        <span class="sheet-ingredient-weight"><strong>${App.esc(formatIngredientsTotal(parsed.ingredients).primaryStr)}</strong></span>
+                      </div>
                     </div>
                   </div>
                 ` : `
@@ -1454,6 +1835,14 @@ Pages.menu = (function () {
       line-height: 1.25;
       padding: 2px 0;
       border-bottom: 1px dotted #ccc;
+    }
+    .sheet-ingredient-total-row {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      background: #f8fafc;
+      font-weight: 900;
     }
     .sheet-ingredient-name {
       font-weight: 500;

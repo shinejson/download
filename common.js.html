@@ -79,6 +79,7 @@ var App = window.App = (function () {
     if (appShell) appShell.style.display = 'none';
     if (loginScreen) {
       loginScreen.style.display = 'flex';
+      bindLoginEvents();
       if (noticeBox) {
         if (noticeMessage) {
           noticeBox.style.display = 'block';
@@ -151,17 +152,21 @@ var App = window.App = (function () {
     form.dataset.bound = 'true';
 
     if (togglePasswordBtn && passwordInput) {
-      togglePasswordBtn.onclick = () => {
+      togglePasswordBtn.onclick = (e) => {
+        if (e) e.preventDefault();
         const isPw = passwordInput.type === 'password';
         passwordInput.type = isPw ? 'text' : 'password';
         togglePasswordBtn.textContent = isPw ? 'Hide' : 'Show';
       };
     }
 
-    form.onsubmit = (e) => {
-      e.preventDefault();
-      const u = (usernameInput.value || '').trim();
-      const p = passwordInput.value || '';
+    const doLogin = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const u = (usernameInput ? usernameInput.value : '').trim();
+      const p = passwordInput ? passwordInput.value : '';
 
       if (usernameError) usernameError.textContent = '';
       if (passwordError) passwordError.textContent = '';
@@ -171,13 +176,13 @@ var App = window.App = (function () {
       if (!u) {
         if (usernameError) usernameError.textContent = 'Username is required.';
         if (usernameInput) usernameInput.classList.add('input-error');
-        usernameInput.focus();
+        if (usernameInput) usernameInput.focus();
         return;
       }
       if (!p) {
         if (passwordError) passwordError.textContent = 'Password is required.';
         if (passwordInput) passwordInput.classList.add('input-error');
-        passwordInput.focus();
+        if (passwordInput) passwordInput.focus();
         return;
       }
 
@@ -220,6 +225,11 @@ var App = window.App = (function () {
         })
         .authenticateUser(u, p);
     };
+
+    form.onsubmit = doLogin;
+    if (submitBtn) submitBtn.onclick = doLogin;
+    if (usernameInput) usernameInput.onkeydown = (e) => { if (e.key === 'Enter') doLogin(e); };
+    if (passwordInput) passwordInput.onkeydown = (e) => { if (e.key === 'Enter') doLogin(e); };
   }
 
   function applyBrandSettings(settings) {
