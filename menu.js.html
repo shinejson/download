@@ -1023,10 +1023,8 @@ Pages.menu = (function () {
     const initialDate = record && record.date ? App.fmtDate(record.date) : '';
     const initialDay = getDayOfWeek(initialDate);
 
-    // Datalist options
+    // Datalist options (for category titles)
     const catDatalistHtml = (categoryOptions || []).map(c => `<option value="${App.esc(c['Categories name'] || '')}">`).join('');
-    const mealDatalistHtml = (mealOptions || []).map(m => `<option value="${App.esc(m['Meal Name'] || m['meal name'] || m['Items Name'] || m.name || '')}">`).join('');
-    const itemDatalistHtml = (itemOptions || []).map(i => `<option value="${App.esc(i['Items Name'] || '')}">`).join('');
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop show';
@@ -1043,8 +1041,6 @@ Pages.menu = (function () {
         <div class="modal-body" style="padding: 22px;">
           <!-- Master Autocomplete Lists -->
           <datalist id="builderCategoryDatalist">${catDatalistHtml}</datalist>
-          <datalist id="builderMealDatalist">${mealDatalistHtml}</datalist>
-          <datalist id="builderItemDatalist">${itemDatalistHtml}</datalist>
 
           <!-- Top Meta Bar -->
           <div class="menu-builder-meta">
@@ -1157,7 +1153,7 @@ Pages.menu = (function () {
             ${cat.items.map((it, iIdx) => `
               <div class="dish-item-row" data-item-idx="${iIdx}">
                 <div class="searchable-combobox">
-                  <input type="text" class="dish-name combobox-input" list="builderMealDatalist" placeholder="Select or type meal name..." value="${App.esc(it.name)}" autocomplete="off">
+                  <input type="text" class="dish-name combobox-input" placeholder="Select or type meal name..." value="${App.esc(it.name)}" autocomplete="off">
                   <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
                   <div class="combobox-menu"></div>
                 </div>
@@ -1324,7 +1320,7 @@ Pages.menu = (function () {
       container.innerHTML = stateIngredients.map((ing, idx) => `
         <div class="ingredient-row" data-ing-idx="${idx}">
           <div class="searchable-combobox">
-            <input type="text" class="ing-name combobox-input" list="builderItemDatalist" placeholder="Select or type ingredient..." value="${App.esc(ing.name)}" autocomplete="off">
+            <input type="text" class="ing-name combobox-input" placeholder="Select or type ingredient..." value="${App.esc(ing.name)}" autocomplete="off">
             <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
             <div class="combobox-menu"></div>
           </div>
