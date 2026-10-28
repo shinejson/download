@@ -4,6 +4,7 @@
 
 const SHEET_HEADERS = {
   categories: ['ID', 'Categories name'],
+  meals: ['ID', 'Meal Name'],
   items: ['ID', 'Items Name'],
   menu: ['mid', 'conference name', 'date', 'pax', 'menu', 'remarks', 'status'],
   users: ['userid', 'firstname', 'lastname', 'contact', 'email', 'username', 'password', 'role', 'department', 'status'],
@@ -13,6 +14,22 @@ const SHEET_HEADERS = {
 function getSheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    const norm = String(name || '').toLowerCase().trim();
+    const aliases = {
+      'meals': ['meals', 'Meals', 'meal', 'Meal'],
+      'items': ['items', 'Items', 'item', 'Item'],
+      'categories': ['categories', 'Categories', 'category', 'Category'],
+      'menu': ['menu', 'Menu'],
+      'users': ['users', 'Users'],
+      'settings': ['settings', 'Settings']
+    };
+    const candidates = aliases[norm] || [name];
+    for (let i = 0; i < candidates.length; i++) {
+      sheet = ss.getSheetByName(candidates[i]);
+      if (sheet) break;
+    }
+  }
   if (!sheet) {
     sheet = ss.insertSheet(name);
     const headers = SHEET_HEADERS[name] || [];

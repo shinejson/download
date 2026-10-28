@@ -95,6 +95,8 @@ function getPageTitle(page) {
   const titles = {
     dashboard: 'Dashboard',
     categories: 'Categories',
+    meals: 'Meals',
+    meal: 'Meals',
     items: 'Items',
     menu: 'Menu (Conferences)',
     users: 'Users',
@@ -327,6 +329,7 @@ function getNotifications() {
     const items = [];
 
     const sheetChecks = [
+      { sheet: 'meals', title: 'Meals inventory updated', message: 'prepared meals tracked in the catalog.', label: 'meals' },
       { sheet: 'items', title: 'Inventory updated', message: 'items tracked in the system.', label: 'items' },
       { sheet: 'menu', title: 'Conference schedule refreshed', message: 'conference records are available.', label: 'conferences' },
       { sheet: 'users', title: 'User access updated', message: 'user accounts are active and ready.', label: 'accounts' },
@@ -383,6 +386,7 @@ function searchRecords(query) {
     const results = [];
 
     const sheets = [
+      { name: 'meals', type: 'meal', nameField: 'Meal Name', idField: 'ID', label: 'Meal' },
       { name: 'items', type: 'item', nameField: 'Items Name', idField: 'ID', label: 'Item' },
       { name: 'categories', type: 'category', nameField: 'Categories name', idField: 'ID', label: 'Category' },
       { name: 'menu', type: 'conference', nameField: 'conference name', idField: 'mid', label: 'Conference' }

@@ -1,0 +1,56 @@
+<div class="card">
+  <div class="card-header-bar">
+    <h3><i class="fa-solid fa-utensils"></i> Meals Inventory</h3>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-secondary" id="mealsImportBtn" type="button">
+        <i class="fa-solid fa-file-import"></i> Import Meals
+      </button>
+      <button class="btn btn-primary" id="mealsAddBtn" type="button">
+        <i class="fa-solid fa-plus"></i> Add Meal
+      </button>
+    </div>
+  </div>
+
+  <div class="advanced-filter-bar">
+    <div class="filter-group-main">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" class="search-input" id="mealsSearchInput" placeholder="Search by meal name or ID...">
+        <button class="search-clear-btn" id="mealsSearchClearBtn" type="button" style="display:none;" title="Clear search" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group-controls">
+      <label class="filter-control">
+        <i class="fa-solid fa-text-width"></i> Length:
+        <select class="filter-select" id="mealsLengthFilter" aria-label="Filter by meal name length">
+          <option value="all">All Lengths</option>
+          <option value="short">Short (&le; 8 chars)</option>
+          <option value="long">Long (&gt; 12 chars)</option>
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <i class="fa-solid fa-arrow-down-a-z"></i> Sort:
+        <select class="filter-select" id="mealsSortOrder" aria-label="Sort meals">
+          <option value="name_asc">Name (A &rarr; Z)</option>
+          <option value="name_desc">Name (Z &rarr; A)</option>
+          <option value="id_desc">ID (Newest First)</option>
+          <option value="id_asc">ID (Oldest First)</option>
+        </select>
+      </label>
+
+      <button type="button" class="btn btn-secondary btn-sm" id="mealsResetFiltersBtn" title="Reset all filters">
+        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <div id="mealsBulkBar" class="bulk-action-bar" style="display:none;"></div>
+
+  <div id="mealsTableWrap">
+    <div class="loading"><div class="spinner"></div>Loading meals...</div>
+  </div>
+</div>

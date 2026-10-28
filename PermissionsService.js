@@ -20,26 +20,30 @@ const ROLE_PERMISSIONS = {
   admin: [
     'dashboard.view',
     'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
+    'meals.view', 'meals.create', 'meals.edit', 'meals.delete',
     'items.view', 'items.create', 'items.edit', 'items.delete',
-    'menu.view', 'menu.create', 'menu.edit', 'menu.delete',
+    'menu.view', 'menu.create', 'menu.edit', 'menu.delete', 'menu.approve',
     'users.view', 'users.create', 'users.edit', 'users.delete',
     'settings.view', 'settings.edit'
   ],
   manager: [
     'dashboard.view',
     'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
+    'meals.view', 'meals.create', 'meals.edit', 'meals.delete',
     'items.view', 'items.create', 'items.edit', 'items.delete',
     'menu.view', 'menu.create', 'menu.edit', 'menu.delete'
   ],
   staff: [
     'dashboard.view',
     'categories.view',
+    'meals.view',
     'items.view',
     'menu.view', 'menu.create', 'menu.edit'
   ],
   viewer: [
     'dashboard.view',
     'categories.view',
+    'meals.view',
     'items.view',
     'menu.view'
   ]

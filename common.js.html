@@ -1,9 +1,9 @@
 <script>
 var Pages = window.Pages = window.Pages || {};
 var App = window.App = (function () {
-  const ROUTES = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
+  const ROUTES = ['dashboard', 'categories', 'meals', 'items', 'menu', 'users', 'settings', 'search', 'meal'];
   const TITLES = {
-    dashboard: 'Dashboard', categories: 'Categories', items: 'Items',
+    dashboard: 'Dashboard', categories: 'Categories', meals: 'Meals', meal: 'Meals', items: 'Items',
     menu: 'Menu (Conferences)', users: 'Users', settings: 'Settings', search: 'Search'
   };
 
@@ -755,7 +755,7 @@ var App = window.App = (function () {
     applyRolePermissions();
     startSessionTimer();
 
-    const pageKeys = ['dashboard', 'categories', 'items', 'menu', 'users', 'settings', 'search'];
+    const pageKeys = ['dashboard', 'categories', 'meals', 'items', 'menu', 'users', 'settings', 'search'];
     pageKeys.forEach(k => {
       if (window.Pages && window.Pages[k] && typeof window.Pages[k].init === 'function') {
         try { window.Pages[k].init(); } catch (err) { console.error('Error initializing ' + k + ' page:', err); }
@@ -767,6 +767,7 @@ var App = window.App = (function () {
   }
 
   function navigate(page, setHash = true) {
+    if (page === 'meal') page = 'meals';
     if (!ROUTES.includes(page)) page = 'dashboard';
 
     // Route guard: check page permission if user profile is loaded

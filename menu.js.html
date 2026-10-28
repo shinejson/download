@@ -3,6 +3,7 @@ var Pages = window.Pages = window.Pages || {};
 Pages.menu = (function () {
   let records = [];
   let categoryOptions = [];
+  let mealOptions = [];
   let itemOptions = [];
   let page = 1;
   let pageSize = 10;
@@ -347,6 +348,11 @@ Pages.menu = (function () {
         .getCategories();
 
       google.script.run
+        .withSuccessHandler(data => { mealOptions = data || []; })
+        .withFailureHandler(() => { mealOptions = []; })
+        .getMeals();
+
+      google.script.run
         .withSuccessHandler(data => { itemOptions = data || []; })
         .withFailureHandler(() => { itemOptions = []; })
         .getItems();
@@ -357,8 +363,8 @@ Pages.menu = (function () {
     const list = [];
     const seen = new Set();
 
-    (itemOptions || []).forEach(it => {
-      const name = String(it['Items Name'] || it.name || '').trim();
+    (mealOptions || []).forEach(it => {
+      const name = String(it['Meal Name'] || it['meal name'] || it.Meal || it.meal || it['Items Name'] || it.name || '').trim();
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
         list.push(name);
@@ -388,7 +394,7 @@ Pages.menu = (function () {
     const seen = new Set();
 
     (itemOptions || []).forEach(it => {
-      const name = String(it['Items Name'] || it.name || '').trim();
+      const name = String(it['Items Name'] || it['items name'] || it.Item || it.item || it.name || '').trim();
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
         list.push(name);
@@ -898,7 +904,7 @@ Pages.menu = (function () {
               <button class="btn btn-secondary btn-sm" data-download-pdf="${App.esc(r.mid)}" title="Download Production Sheet as PDF">
                 <i class="fa-solid fa-file-arrow-down"></i> PDF
               </button>
-              ${(!isApproved && (canEdit || (App.currentUser && App.currentUser.role === 'admin'))) ? `
+              ${(!isApproved && (App.currentUser && App.currentUser.role === 'admin')) ? `
                 <button class="btn btn-success btn-sm" data-approve="${App.esc(r.mid)}" title="Approve this conference menu">
                   <i class="fa-solid fa-check"></i> Approve
                 </button>
@@ -937,8 +943,8 @@ Pages.menu = (function () {
   }
 
   function approveConference(id) {
-    if (!App.can('menu.edit') && !(App.currentUser && App.currentUser.role === 'admin')) {
-      App.toast('Permission denied: You cannot approve conference menus.', 'error');
+    if (!(App.currentUser && App.currentUser.role === 'admin')) {
+      App.toast('Permission denied: Only administrators can approve conference menus.', 'error');
       return;
     }
     if (!window.confirm('Approve this conference menu?')) return;
@@ -990,10 +996,11 @@ Pages.menu = (function () {
       return;
     }
 
-    if (!itemOptions || itemOptions.length === 0) {
+    if (!itemOptions || itemOptions.length === 0 || !mealOptions || mealOptions.length === 0) {
       loadMasterLookups();
     }
 
+    const isAdmin = !!(App.currentUser && App.currentUser.role === 'admin');
     const parsed = parseMenuData(record ? record.menu : null);
 
     // Initial state
@@ -1018,6 +1025,7 @@ Pages.menu = (function () {
 
     // Datalist options
     const catDatalistHtml = (categoryOptions || []).map(c => `<option value="${App.esc(c['Categories name'] || '')}">`).join('');
+    const mealDatalistHtml = (mealOptions || []).map(m => `<option value="${App.esc(m['Meal Name'] || m['meal name'] || m['Items Name'] || m.name || '')}">`).join('');
     const itemDatalistHtml = (itemOptions || []).map(i => `<option value="${App.esc(i['Items Name'] || '')}">`).join('');
 
     const backdrop = document.createElement('div');
@@ -1035,6 +1043,7 @@ Pages.menu = (function () {
         <div class="modal-body" style="padding: 22px;">
           <!-- Master Autocomplete Lists -->
           <datalist id="builderCategoryDatalist">${catDatalistHtml}</datalist>
+          <datalist id="builderMealDatalist">${mealDatalistHtml}</datalist>
           <datalist id="builderItemDatalist">${itemDatalistHtml}</datalist>
 
           <!-- Top Meta Bar -->
@@ -1061,9 +1070,9 @@ Pages.menu = (function () {
 
             <label>
               <span>Approval Status</span>
-              <select id="builderConfStatus" style="height:38px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;background:var(--surface);color:var(--text);">
+              <select id="builderConfStatus" ${!isAdmin ? 'disabled title="Only administrators can approve menus"' : ''} style="height:38px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;background:var(--surface);color:var(--text);">
                 <option value="Pending" ${(!record || record.status !== 'Approved') ? 'selected' : ''}>Pending Approval</option>
-                <option value="Approved" ${(record && record.status === 'Approved') ? 'selected' : ''}>Approved</option>
+                ${isAdmin ? `<option value="Approved" ${(record && record.status === 'Approved') ? 'selected' : ''}>Approved</option>` : (record && record.status === 'Approved' ? '<option value="Approved" selected>Approved</option>' : '')}
               </select>
             </label>
           </div>
@@ -1148,7 +1157,7 @@ Pages.menu = (function () {
             ${cat.items.map((it, iIdx) => `
               <div class="dish-item-row" data-item-idx="${iIdx}">
                 <div class="searchable-combobox">
-                  <input type="text" class="dish-name combobox-input" placeholder="Select or type item name..." value="${App.esc(it.name)}" autocomplete="off">
+                  <input type="text" class="dish-name combobox-input" list="builderMealDatalist" placeholder="Select or type meal name..." value="${App.esc(it.name)}" autocomplete="off">
                   <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
                   <div class="combobox-menu"></div>
                 </div>
@@ -1315,7 +1324,7 @@ Pages.menu = (function () {
       container.innerHTML = stateIngredients.map((ing, idx) => `
         <div class="ingredient-row" data-ing-idx="${idx}">
           <div class="searchable-combobox">
-            <input type="text" class="ing-name combobox-input" placeholder="Select or type ingredient..." value="${App.esc(ing.name)}" autocomplete="off">
+            <input type="text" class="ing-name combobox-input" list="builderItemDatalist" placeholder="Select or type ingredient..." value="${App.esc(ing.name)}" autocomplete="off">
             <button type="button" class="combobox-arrow-btn" tabindex="-1" title="Show suggestions"><i class="fa-solid fa-chevron-down"></i></button>
             <div class="combobox-menu"></div>
           </div>
@@ -1610,7 +1619,7 @@ Pages.menu = (function () {
         <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
           <button type="button" class="btn btn-secondary" data-close>Close</button>
           <div style="display:flex;gap:10px;align-items:center;">
-            ${(!isApproved && (App.can('menu.edit') || (App.currentUser && App.currentUser.role === 'admin'))) ? `
+            ${(!isApproved && (App.currentUser && App.currentUser.role === 'admin')) ? `
               <button type="button" class="btn btn-success" id="sheetApproveBtn">
                 <i class="fa-solid fa-check"></i> Approve Menu
               </button>

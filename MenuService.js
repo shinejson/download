@@ -6,38 +6,58 @@ function getMenuRecords() {
   return readAll_(MENU_SHEET);
 }
 
-function syncMasterItemsAndCategories_(categoriesData) {
-  if (!Array.isArray(categoriesData)) return;
+function syncMasterItemsAndCategories_(categoriesData, ingredientsData) {
   try {
-    const existingCats = readAll_('categories') || [];
-    const catNames = new Set(existingCats.map(c => String(c['Categories name'] || '').trim().toLowerCase()));
+    // 1. Sync Categories and Prepared Meals
+    if (Array.isArray(categoriesData)) {
+      const existingCats = readAll_('categories') || [];
+      const catNames = new Set(existingCats.map(c => String(c['Categories name'] || '').trim().toLowerCase()));
 
-    const existingItems = readAll_('items') || [];
-    const itemNames = new Set(existingItems.map(i => String(i['Items Name'] || '').trim().toLowerCase()));
+      const existingMeals = readAll_('meals') || [];
+      const mealNames = new Set(existingMeals.map(m => String(m['Meal Name'] || m['meal name'] || m['Items Name'] || '').trim().toLowerCase()));
 
-    categoriesData.forEach(cat => {
-      const cName = String(cat.name || '').trim();
-      if (cName && !catNames.has(cName.toLowerCase())) {
-        createRow_('categories', {
-          ID: genId_('CAT'),
-          'Categories name': cName
-        });
-        catNames.add(cName.toLowerCase());
-      }
+      categoriesData.forEach(cat => {
+        const cName = String(cat.name || '').trim();
+        if (cName && !catNames.has(cName.toLowerCase())) {
+          createRow_('categories', {
+            ID: genId_('CAT'),
+            'Categories name': cName
+          });
+          catNames.add(cName.toLowerCase());
+        }
 
-      if (Array.isArray(cat.items)) {
-        cat.items.forEach(it => {
-          const iName = String(it.name || '').trim();
-          if (iName && !itemNames.has(iName.toLowerCase())) {
-            createRow_('items', {
-              ID: genId_('ITM'),
-              'Items Name': iName
-            });
-            itemNames.add(iName.toLowerCase());
-          }
-        });
-      }
-    });
+        // Dish items under categories sync to meals
+        if (Array.isArray(cat.items)) {
+          cat.items.forEach(it => {
+            const mName = String(it.name || '').trim();
+            if (mName && !mealNames.has(mName.toLowerCase())) {
+              createRow_('meals', {
+                ID: genId_('MEL'),
+                'Meal Name': mName
+              });
+              mealNames.add(mName.toLowerCase());
+            }
+          });
+        }
+      });
+    }
+
+    // 2. Sync raw ingredients to storehouse items
+    if (Array.isArray(ingredientsData)) {
+      const existingItems = readAll_('items') || [];
+      const itemNames = new Set(existingItems.map(i => String(i['Items Name'] || '').trim().toLowerCase()));
+
+      ingredientsData.forEach(ing => {
+        const iName = String(ing.name || '').trim();
+        if (iName && !itemNames.has(iName.toLowerCase())) {
+          createRow_('items', {
+            ID: genId_('ITM'),
+            'Items Name': iName
+          });
+          itemNames.add(iName.toLowerCase());
+        }
+      });
+    }
   } catch (err) {
     console.error('Non-critical: syncMasterItemsAndCategories error:', err);
   }
@@ -53,7 +73,9 @@ function createMenu(data) {
   if (data.menu && typeof data.menu === 'string' && data.menu.startsWith('{')) {
     try {
       const parsed = JSON.parse(data.menu);
-      if (parsed.categories) syncMasterItemsAndCategories_(parsed.categories);
+      if (parsed.categories || parsed.ingredients) {
+        syncMasterItemsAndCategories_(parsed.categories, parsed.ingredients);
+      }
     } catch (e) {}
   }
 
@@ -69,7 +91,9 @@ function updateMenu(id, data) {
   if (data.menu && typeof data.menu === 'string' && data.menu.startsWith('{')) {
     try {
       const parsed = JSON.parse(data.menu);
-      if (parsed.categories) syncMasterItemsAndCategories_(parsed.categories);
+      if (parsed.categories || parsed.ingredients) {
+        syncMasterItemsAndCategories_(parsed.categories, parsed.ingredients);
+      }
     } catch (e) {}
   }
 
@@ -79,16 +103,20 @@ function updateMenu(id, data) {
 }
 
 function approveMenu(id) {
-  requirePermission_('menu.edit');
+  requirePermission_('menu.approve');
   const updated = updateRow_(MENU_SHEET, MENU_ID, id, { status: 'Approved' });
   try { sendConferenceAlert_('approve', updated); } catch (e) {}
   return updated;
 }
 
 function updateMenuStatus(id, newStatus) {
-  requirePermission_('menu.edit');
   const valid = ['Pending', 'Approved'];
   const cleanStatus = valid.includes(newStatus) ? newStatus : 'Pending';
+  if (cleanStatus === 'Approved') {
+    requirePermission_('menu.approve');
+  } else {
+    requirePermission_('menu.edit');
+  }
   const updated = updateRow_(MENU_SHEET, MENU_ID, id, { status: cleanStatus });
   try { sendConferenceAlert_(cleanStatus.toLowerCase(), updated); } catch (e) {}
   return updated;

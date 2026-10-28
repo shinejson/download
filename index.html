@@ -95,6 +95,9 @@
         <a href="#categories" data-page="categories" data-tooltip="Categories" class="nav-link">
           <span class="icon"><i class="fa-solid fa-layer-group"></i></span><span>Categories</span>
         </a>
+        <a href="#meals" data-page="meals" data-tooltip="Meals" class="nav-link">
+          <span class="icon"><i class="fa-solid fa-utensils"></i></span><span>Meals</span>
+        </a>
         <a href="#items" data-page="items" data-tooltip="Items" class="nav-link">
           <span class="icon"><i class="fa-solid fa-boxes-stacked"></i></span><span>Items</span>
         </a>
@@ -217,6 +220,7 @@
       <main id="content">
         <div id="page-dashboard" class="page"><?!= include('dashboard'); ?></div>
         <div id="page-categories" class="page"><?!= include('categories'); ?></div>
+        <div id="page-meals" class="page"><?!= include('meals'); ?></div>
         <div id="page-items" class="page"><?!= include('items'); ?></div>
         <div id="page-menu" class="page"><?!= include('menu'); ?></div>
         <div id="page-users" class="page"><?!= include('users'); ?></div>
@@ -231,9 +235,10 @@
   <?!= include('common.js'); ?>
   <?!= include('dashboard.js'); ?>
   <?!= include('categories.js'); ?>
+  <?!= include('meals.js'); ?>
+  <?!= include('items.js'); ?>
   <?!= include('menu.js'); ?>
   <?!= include('settings.js'); ?>
-  <?!= include('items.js'); ?>
   <?!= include('users.js'); ?>
   <?!= include('search.js'); ?>
 
