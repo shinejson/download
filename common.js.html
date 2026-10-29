@@ -506,7 +506,7 @@ var App = window.App = (function () {
       } else {
         const isCollapsed = !!collapsed;
         sidebar.classList.toggle('collapsed', isCollapsed);
-        sidebar.classList.remove('hidden');
+        sidebar.classList.remove('hidden', 'hover-expanded', 'force-collapsed');
         if (main) {
           main.classList.toggle('sidebar-collapsed', isCollapsed);
           main.classList.remove('full');
@@ -520,6 +520,35 @@ var App = window.App = (function () {
           localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
         } catch (e) {}
       }
+    }
+
+    if (sidebar) {
+      sidebar.addEventListener('mouseenter', () => {
+        if (!isMobile() && sidebar.classList.contains('collapsed') && !sidebar.classList.contains('force-collapsed')) {
+          sidebar.classList.add('hover-expanded');
+        }
+      });
+      sidebar.addEventListener('mouseleave', () => {
+        sidebar.classList.remove('hover-expanded', 'force-collapsed');
+      });
+      sidebar.addEventListener('click', (e) => {
+        const link = e.target.closest('a, button');
+        if (!link) return;
+        if (sidebar.classList.contains('collapsed')) {
+          sidebar.classList.add('force-collapsed');
+          sidebar.classList.remove('hover-expanded');
+          if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+          }
+        }
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!sidebar.classList.contains('force-collapsed')) return;
+        const rect = sidebar.getBoundingClientRect();
+        if (e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+          sidebar.classList.remove('force-collapsed');
+        }
+      });
     }
 
     if (sidebarToggle) {
@@ -808,6 +837,15 @@ var App = window.App = (function () {
         sidebar.classList.add('hidden');
       }
       if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+    } else {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar && sidebar.classList.contains('collapsed')) {
+        sidebar.classList.add('force-collapsed');
+        sidebar.classList.remove('hover-expanded');
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+          document.activeElement.blur();
+        }
+      }
     }
   }
 
