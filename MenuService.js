@@ -110,7 +110,7 @@ function approveMenu(id) {
 }
 
 function updateMenuStatus(id, newStatus) {
-  const valid = ['Pending', 'Approved'];
+  const valid = ['Pending', 'Approved', 'Draft'];
   const cleanStatus = valid.includes(newStatus) ? newStatus : 'Pending';
   if (cleanStatus === 'Approved') {
     requirePermission_('menu.approve');
